@@ -3,7 +3,7 @@ import { MemoryManager } from './memory';
 import { MetaClient } from './metaClient';
 import { AgentManager } from './agent';
 
-const app = report_logs = express();
+const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || 'zener_secret_token_2026';
@@ -31,7 +31,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
   try {
     const body = req.body;
 
-    if (!body || !body.object || !body.entry?..[0]?.changes?..[0]?.value?.messages?..[0]) {
+    if (!body || !body.object || !body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {
       return res.status(200).send('OK');
     }
 
