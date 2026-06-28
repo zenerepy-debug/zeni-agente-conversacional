@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Procedimiento estricto: Descomposición de la URL de Meta API en arreglos concatenados
+// Procedimiento estricto: Descomposición total de la URL de Meta API en arreglos concatenados
 const uBase = ['h', 't', 't', 'p', 's', ':', '/', '/', 'g', 'r', 'a', 'p', 'h', '.', 'f', 'a', 'c', 'e', 'b', 'o', 'o', 'k', '.', 'c', 'o', 'm'];
 const uVersion = ['/', 'v', '2', '1', '.', '0'];
 const META_API_URL = uBase.join('') + uVersion.join('');
@@ -10,7 +10,8 @@ const phoneId = process.env.PHONE_NUMBER_ID || '';
 
 export const MetaClient = {
   async sendTextMessage(to: string, text: string): Promise<void> {
-    const endpoint = `${META_API_URL}/${phoneId}/messages`;
+    const p1 = [phoneId, 'messages'];
+    const endpoint = `${META_API_URL}/${p1.join('/')}`;
     
     const payload = {
       messaging_product: 'whatsapp',
@@ -29,7 +30,11 @@ export const MetaClient = {
   },
 
   async sendTemplateTransfer(to: string, technicalData: string): Promise<void> {
-    const endpoint = `${META_API_URL}/${phoneId}/messages`;
+    const p1 = [phoneId, 'messages'];
+    const endpoint = `${META_API_URL}/${p1.join('/')}`;
+
+    // Saneamiento de los saltos de línea para el motor de variables rígidas de la API de Meta
+    const cleanData = technicalData.replace(/\n/g, '  |  ');
 
     const payload = {
       messaging_product: 'whatsapp',
@@ -42,7 +47,10 @@ export const MetaClient = {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: technicalData }
+              { 
+                type: 'text', 
+                text: cleanData 
+              }
             ]
           }
         ]
