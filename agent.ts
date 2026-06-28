@@ -18,8 +18,8 @@ EMBUDO DE FILTRADO SECUENCIAL ESTRICTO (PROCESA RIGUROSAMENTE EN ESTE ORDEN):
    - Si detectas que la ciudad está FUERA de estas 12 localidades (ej: Itauguá, Ypacaraí, Encarnación, CDE): Ejecuta de inmediato el CIERRE DEFINITIVO. Explica amablemente que no cuentas con cobertura en su zona y aclara sutilmente que tampoco se reciben televisores por encomienda desde el interior. Termina cordialmente y no dejes abierta ninguna palabra clave de reinicio. El bot se detiene por completo y se congela el flujo para este usuario.
 
 2. FILTRO 2 - SÍNTOMA / FALLA (SÓLO SI PASA EL FILTRO 1):
-   - Aplica escepticismo técnico. Los clientes mienten o dan falsos diagnósticos (ej: "necesito cambio de led"). No asumas su diagnóstico. Investiga con preguntas cortas los síntomas físicos reales.
-   - CASO FALLA DE DISPLAY: Aplica a cualquier daño físico, pantallas rotas, golpeadas, estrelladas, caídas, fisuras, líneas verticales/horizontales, franjas, manchas de "tinta" derramada, pantalla que enciende con luz de fondo pero sin imagen, parpadeos continuos, imágenes superpuestas o congeladas (incluye fallas de T-Con o chip COF). Prioriza la evidencia visual o el síntoma físico por encima del discurso del cliente (si dice que se cayó pero no está rota, pero describe manchas o líneas, es display).
+   - Aplica escepticismo técnico. Los clientes mienten o dan falsos diagnósticos (ej: "necesito cambio de led"). No asumas su diagnóstico. Investiga con preguntas cortos los síntomas físicos reales.
+   - CASO FALLA DE DISPLAY: Aplica a cualquier daño físico, pantallas rotas, golpeadas, estrelladas, caídas, fisuras, líneas verticales/horizontales, franjas, manchas de "tinta" derramada, pantalla que enciende con luz de fondo pero sin imagen, parpadeos continuos, imágenes superpuestas o congeladas (incluye fallas de T-Con o chip COF). Prioriza la evidencia visual o el síntoma físico por encima del discurso del cliente.
    - ACCIÓN PARA DISPLAY: Ejecuta el CIERRE CON OPCIÓN NUEVA TV. Explica de forma humana que el costo de un panel de repuesto original nuevo representa entre el 80% y 90% del valor de un televisor nuevo de paquete en el mercado, sumado a la dificultad de importación, por lo que económicamente no resulta viable realizar esa inversión. Debes usar estrictamente la frase exacta: "no reparamos ni cambiamos pantallas". Al despedirte de forma amable, indícale textualmente que si en el acto o más adelante desea consultar por un televisor diferente que no tenga esta falla, solo debe escribir la palabra "Inicio" para volver a empezar.
 
 3. FILTRO 3 - CASO FALLA LED Y REGLA DE CONFIRMACIÓN:
@@ -47,10 +47,10 @@ Cuando recolectes con éxito: Ciudad válida + Falla calificada (LED o Placa) + 
 {"action": "transferir", "ciudad": "Nombre de la Ciudad", "sintoma": "Resumen corto de la falla", "marca": "Marca del TV", "tamano": "Tamaño del TV"}
 
 Si detectas un cierre definitivo por falta de cobertura o por falla de display incurable, responde con formato JSON para que la app lo procese de inmediato:
-{"action": "descalificar", "motivo": "fuera_cobertura", "text": "Mensaje amable de despedida sin reinicio"}
-o bien:
-{"action": "display_out", "text": "Mensaje amable con la frase exacta 'no reparamos ni cambiamos pantallas' e indicando que escriba 'Inicio' si desea consultar por otro equipo"}
-`;
+{"action": "descalificar"}
+
+Si detectas falla de display:
+{"action": "display_out"}`;
 
 export const AgentManager = {
   async processMessage(history: ChatCompletionMessageParam[], userMessage: string): Promise<{ text: string; action?: 'transferir' | 'descalificar' | 'display_out'; metadata?: any }> {
@@ -60,44 +60,41 @@ export const AgentManager = {
       { role: 'user', content: userMessage }
     ];
 
-    try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: messages,
-        temperature: 0.2
-      });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: messages,
+      temperature: 0.3
+    });
 
-      const replyText = response.choices[0].message.content?.trim() || '';
-
-      if (replyText.startsWith('{') && replyText.endsWith('}')) {
-        try {
-          const parsed = JSON.parse(replyText);
-          if (parsed.action === 'transferir') {
-            return {
-              text: 'Entendido. En unos instantes el servicio técnico se comunicará contigo.',
-              action: 'transferir',
-              metadata: {
-                ciudad: parsed.ciudad,
-                sintoma: parsed.sintoma,
-                marca: parsed.marca,
-                tamano: parsed.tamano
-              }
-            };
-          }
-          if (parsed.action === 'descalificar') {
-            return { text: parsed.text, action: 'descalificar' };
-          }
-          if (parsed.action === 'display_out') {
-            return { text: parsed.text, action: 'display_out' };
-          }
-        } catch (e) {
-          // Fallback por si rompe el parseo
+    const reply = response.choices[0]?.message?.content || '';
+    
+    if (reply.trim().startsWith('{') && reply.trim().endsWith('}')) {
+      try {
+        const parsed = JSON.parse(reply.trim());
+        if (parsed.action === 'transferir') {
+          return {
+            text: '¡Excelente! Pasamos tus datos al departamento técnico. En minutos el especialista se comunicará directamente a este WhatsApp para darte el presupuesto final.',
+            action: 'transferir',
+            metadata: parsed
+          };
         }
+        if (parsed.action === 'descalificar' || parsed.action === 'display_out') {
+          return { text: reply, action: parsed.action };
+        }
+      } catch (e) {
+        // Fallback
       }
-
-      return { text: replyText };
-    } catch (error) {
-      return { text: 'Disculpas, estamos experimentando intermitencias. Por favor escribe más tarde.' };
     }
+
+    let actionResult: 'transferir' | 'descalificar' | 'display_out' | undefined = undefined;
+    const lowerReply = reply.toLowerCase();
+    
+    if (lowerReply.includes('no reparamos ni cambiamos pantallas')) {
+      actionResult = 'display_out';
+    } else if (lowerReply.includes('no hay cobertura en su zona') || lowerReply.includes('no contamos con cobertura')) {
+      actionResult = 'descalificar';
+    }
+
+    return { text: reply, action: actionResult };
   }
 };
