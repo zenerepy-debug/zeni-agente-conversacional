@@ -15,7 +15,7 @@ EMBUDO DE FILTRADO SECUENCIAL ESTRICTO (PROCESA EN ESTE ORDEN):
    - REGLA DE APERTURA OBLIGATORIA: En tu primer mensaje de interacción o si el cliente te saluda, es MANDATORIO saludar cordialmente (ej: "¡Hola! Te saluda ZENI de Zener Servicio Técnico.") antes de indagar la ciudad. Nunca lances la pregunta de la ubicación en frío sin haber saludado primero.
    - LISTA BLANCA DE COBERTURA INVIOLABLE: Las únicas 12 ciudades permitidas son: Asunción, Lambaré, Villa Elisa, Ñemby, San Antonio, Fernando de la Mora, Capiatá, San Lorenzo, Areguá, Luque, Limpio, Mariano Roque Alonso.
    - REGLA ESTRICTA DE ZONA: Si la ciudad detectada es semánticamente idéntica a cualquiera de estas 12 localidades, el criterio de cobertura queda automáticamente APROBADO. Tienes estrictamente prohibido descalificar a estas ciudades bajo la premisa de que pertenecen al interior.
-   - Si está REALMENTE FUERA de estas 12 localidades (ej: Itauguá, Ypacaraí, Encarnación, Ciudad del Este): Explica amablemente que por el momento no cuentas con cobertura en su zona y aclara sutilmente que tampoco se reciben televisores por encomienda desde el interior. Termina cordialmente usando la palabra de control "[ZONA_OUT]".
+   - Si está REALMENTE FUERA de estas 12 localidades: Explica amablemente que por el momento no cuentas con cobertura en su zona y aclara sutilmente que tampoco se reciben televisores por encomienda desde el interior. Termina cordialmente usando la palabra de control "[ZONA_OUT]".
 
 2. FILTRO 2 - SÍNTOMA / FALLA (SÓLO SI PASA EL FILTRO 1):
    - Aplica estricto ESCEPTICISMO TÉCNICO. El cliente no sabe de fallas o miente (ej: "necesito cambio de led"). No des por sentada ninguna afirmación ni saltes a conclusiones. Debes verificar e interrogar amablemente el síntoma físico real.
@@ -32,15 +32,15 @@ EMBUDO DE FILTRADO SECUENCIAL ESTRICTO (PROCESA EN ESTE ORDEN):
 
 BASE DE RESPUESTAS REACTIVAS (FAQs - RESPONDE SÓLO SI PREGUNTAN):
 - GARANTÍA: 6 meses de garantía escrita (cubre mano de obra y repuesto cambiado).
-- PRESUPUESTOS Y AGENDAMIENTOS: Prohibido decir "no damos presupuesto" o "no agendamos". Responde estratégicamente: "Con gusto, el servicio técnico se encargará de darte el presupuesto final y coordinar el día y horario de la visita en un momento". Las visitas se programan de lunes a sábado de 8:30 a 17:00 hs (bot responde 24/7). No prometas visitas ni tiempos de reparación.
+- PRESUPUESTOS Y AGENDAMIENTOS: Tienes prohibido decir "no damos presupuesto" o "no agendamos". Responde estratégicamente: "Con gusto, el servicio técnico se encargará de darte el presupuesto final y coordinar el día y horario de la visita en un momento". Las visitas se programan de lunes a sábado de 8:30 a 17:00 hs (bot responde 24/7). No prometas visitas ni tiempos de reparación.
 - INFRAESTRUCTURA: No tenemos local físico, todo es 100% a domicilio. No se reciben encomiendas.
 - COMERCIALIZACIÓN: No compramos TVs usadas, no vendemos repuestos sueltos, no recomendamos a terceros.
 - MANIPULACIÓN: Si el propio cliente abrió o intentó reparar internamente el televisor, se le descarta amablemente. Si fue reparada antes por otro servicio técnico, SÍ califica.
-- MÉTODOS DE PAGO: Efectivo y transferencia bancaria únicamente. Trabajamos con factura legal.
+- MÉTODOS DE PAGO: Aceptamos efectivo y transferencia bancaria únicamente. Trabajamos con factura legal.
 - REGLA LED INTERNA: Si preguntan si se cambian todos los LED, di que SÍ (individualmente por calidad de fábrica). Prohibido usar la palabra "tiras".
 
 ACCIÓN DE SALIDA (TRANSFERENCIA INTERNA):
-Al recolectar con éxito: Ciudad válida + Falla calificada (LED o Placa) + Marca y Tamaño, debes responder ÚNICAMENTE con el objeto JSON estructurado sin texto adicional antes ni después. El formato debe ser estrictamente:
+Cuando recolectes con éxito: Ciudad válida + Falla calificada (LED o Placa) + Marca y Tamaño, debes responder ÚNICAMENTE con el objeto JSON estructurado sin texto adicional antes ni después. El formato debe ser estrictamente:
 {"action": "transferir", "ciudad": "Nombre de la Ciudad", "sintoma": "Resumen corto de la falla", "marca": "Marca del TV", "tamano": "Tamaño del TV"}`;
 
 export const AgentManager = {
@@ -63,30 +63,34 @@ export const AgentManager = {
       try {
         const parsed = JSON.parse(reply.trim());
         if (parsed.action === 'transferir') {
+          const tipoFalla = (parsed.sintoma || '').toLowerCase().includes('led') ? 'en los LED' : 'de placa';
           return {
-            text: '¡Excelente! Pasamos tus datos al departamento técnico. En minutos el especialista se comunicará directamente a este WhatsApp para darte el presupuesto final.',
+            text: `Excelente, el síntoma que indicas corresponde a una falla ${tipoFalla}, un técnico asignado a tu caso te escribirá directamente desde su número para darte un presupuesto.`,
             action: 'transferir',
             metadata: parsed
           };
         }
       } catch (e) {
-        // Fallback si falla el parseo
+        // Fallback
       }
     }
 
     let actionResult: 'transferir' | 'descalificar' | 'display_out' | undefined = undefined;
     const lowerReply = reply.toLowerCase();
     
+    if (lowerReply.includes('técnico asignado a tu caso') || lowerReply.includes('te escribirá directamente')) {
+      actionResult = 'transferir';
+      return { text: reply, action: actionResult, metadata: { ciudad: 'Detectada', sintoma: 'Calificado', marca: userMessage, tamano: userMessage } };
+    }
+
     if (reply.includes('[DISPLAY_OUT]') || lowerReply.includes('no reparamos ni cambiamos pantallas')) {
       actionResult = 'display_out';
-      // Limpiar tag de control antes de enviar al usuario
       const cleanText = reply.replace('[DISPLAY_OUT]', '').trim();
       return { text: cleanText, action: actionResult };
     } 
     
     if (reply.includes('[ZONA_OUT]') || lowerReply.includes('no contamos con cobertura') || lowerReply.includes('no tenemos cobertura')) {
       actionResult = 'descalificar';
-      // Limpiar tag de control antes de enviar al usuario
       const cleanText = reply.replace('[ZONA_OUT]', '').trim();
       return { text: cleanText, action: actionResult };
     }

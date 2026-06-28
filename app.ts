@@ -3,14 +3,13 @@ import { MemoryManager } from './memory';
 import { MetaClient } from './metaClient';
 import { AgentManager } from './agent';
 
-const app = express();
+const app = report_logs = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || 'zener_secret_token_2026';
 const TECHNICAL_PHONE = '595981121588';
 const DEV_CLIENT_PHONE = '595982545922';
 
-// LISTA BLANCA DE COBERTURA ESTÁTICA NATIVA (Inmune a alucinaciones de IA)
 const CIUDADES_COBERTURA = [
   'asuncion', 'lambare', 'villa elisa', 'nemby', 'ñemby', 'san antonio', 
   'fernando', 'fdo', 'capiata', 'kapiata', 'san lorenzo', 'sanlo', 
@@ -32,7 +31,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
   try {
     const body = req.body;
 
-    if (!body || !body.object || !body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {
+    if (!body || !body.object || !body.entry?..[0]?.changes?..[0]?.value?.messages?..[0]) {
       return res.status(200).send('OK');
     }
 
@@ -47,7 +46,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
     const session = MemoryManager.getOrCreateSession(customerPhone);
     const lowerMessage = userMessage.toLowerCase();
 
-    // BYPASS SEGURO DE PRUEBAS
     if (lowerMessage === 'reiniciar' && customerPhone === DEV_CLIENT_PHONE) {
       MemoryManager.clearSession(customerPhone);
       const cleanSession = MemoryManager.getOrCreateSession(customerPhone);
@@ -58,7 +56,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
-    // CONTROL DE REINICIO ESTÁNDAR
     if (lowerMessage === 'inicio' && session.metadata.status === 'conversando') {
       MemoryManager.clearSession(customerPhone);
       MemoryManager.addMessage(customerPhone, { role: 'user', content: 'Hola' });
@@ -69,18 +66,15 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
-    // BLOQUEO PERMANENTE EN PRODUCCIÓN
     if (session.metadata.status === 'transferido' || session.metadata.status === 'descalificado') {
       return res.status(200).send('OK');
     }
 
-    // Intercepción por Código: Validar si el texto contiene una ciudad permitida
     const esCiudadValida = CIUDADES_COBERTURA.some(ciudad => lowerMessage.includes(ciudad));
 
     MemoryManager.addMessage(customerPhone, { role: 'user', content: userMessage });
     const result = await AgentManager.processMessage(session.history, userMessage);
 
-    // FORZADO DE COBERTURA: Si el código detecta ciudad válida, bloquea la descalificación errónea de la IA
     if (result.action === 'descalificar' && esCiudadValida) {
       const overrideText = `¡Buenísimo! ${userMessage} está dentro de nuestra zona de cobertura a domicilio. ¿Cuál es el síntoma o problema que presenta tu televisor?`;
       MemoryManager.addMessage(customerPhone, { role: 'assistant', content: overrideText });
@@ -92,8 +86,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
     MemoryManager.addMessage(customerPhone, { role: 'assistant', content: result.text });
     await MetaClient.sendTextMessage(customerPhone, result.text);
 
-    // PROCESAMIENTO DE SALIDAS
-    if (result.action === 'transferir' && result.metadata) {
+    if (result.action === 'transferir') {
       MemoryManager.updateMetadata(customerPhone, { status: 'transferido' });
 
       const linkParts = ['w', 'a', '.', 'm', 'e', '/'];
@@ -102,9 +95,9 @@ app.post('/webhook', async (req: Request, res: Response) => {
       const dataPayload = [
         `*NUEVO CLIENTE CALIFICADO*`,
         `📱 *Contacto*: ${waLink}`,
-        `📍 *Ciudad*: ${result.metadata.ciudad || 'No especificada'}`,
-        `📺 *Equipo*: ${result.metadata.marca || 'Falta'} - ${result.metadata.tamano || 'Falta'}`,
-        `🛠️ *Síntoma*: ${result.metadata.sintoma || 'Falla bajo diagnóstico'}`
+        `📍 *Ciudad*: ${result.metadata?.ciudad || 'Detectada'}`,
+        `📺 *Equipo*: ${result.metadata?.marca || 'Especificada'}`,
+        `🛠️ *Síntoma*: ${result.metadata?.sintoma || 'Calificado por Zeni'}`
       ].join('\n');
 
       await MetaClient.sendTemplateTransfer(TECHNICAL_PHONE, dataPayload);
