@@ -50,8 +50,9 @@ export const MemoryManager = {
   addMessage(phone: string, message: ChatCompletionMessageParam): void {
     const session = this.getOrCreateSession(phone);
     session.history.push(message);
-    // Control estricto de contexto a los últimos 20 mensajes para estabilidad y costos
-    if (session.history.length > 20) {
+    
+    // Control de contexto ampliado a 40 mensajes para retener ciudad y síntomas en chats largos sin pérdidas
+    if (session.history.length > 40) {
       session.history.shift();
     }
     session.lastInteraction = Date.now();
