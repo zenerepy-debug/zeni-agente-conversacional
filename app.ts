@@ -8,11 +8,15 @@ app.use(express.json());
 
 const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || 'zener_secret_token_2026';
 const TECHNICAL_PHONE = '595981121588';
-
-// El número del Cliente Simulado exclusivo para realizar tus pruebas continuas
 const DEV_CLIENT_PHONE = '595982545922';
 
-// 1. Verificación del Webhook de Meta (GET)
+// LISTA BLANCA DE COBERTURA ESTÁTICA NATIVA (Inmune a alucinaciones de IA)
+const CIUDADES_COBERTURA = [
+  'asuncion', 'lambare', 'villa elisa', 'nemby', 'ñemby', 'san antonio', 
+  'fernando', 'fdo', 'capiata', 'kapiata', 'san lorenzo', 'sanlo', 
+  'aregua', 'luque', 'luqe', 'limpio', 'mariano', 'roque alonso'
+];
+
 app.get('/webhook', (req: Request, res: Response) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -24,7 +28,6 @@ app.get('/webhook', (req: Request, res: Response) => {
   return res.sendStatus(403);
 });
 
-// 2. Recepción de Mensajes de WhatsApp (POST)
 app.post('/webhook', async (req: Request, res: Response) => {
   try {
     const body = req.body;
@@ -42,49 +45,54 @@ app.post('/webhook', async (req: Request, res: Response) => {
 
     const userMessage = messageData.text.body.trim();
     const session = MemoryManager.getOrCreateSession(customerPhone);
+    const lowerMessage = userMessage.toLowerCase();
 
-    // BYPASS SEGURO DE PRUEBAS: Resetea la memoria de Railway solo si escribe "Reiniciar" desde el número simulado
-    if (userMessage.toLowerCase() === 'reiniciar' && customerPhone === DEV_CLIENT_PHONE) {
+    // BYPASS SEGURO DE PRUEBAS
+    if (lowerMessage === 'reiniciar' && customerPhone === DEV_CLIENT_PHONE) {
       MemoryManager.clearSession(customerPhone);
       const cleanSession = MemoryManager.getOrCreateSession(customerPhone);
-      
       MemoryManager.addMessage(customerPhone, { role: 'user', content: 'Hola' });
       const agentResponse = await AgentManager.processMessage(cleanSession.history, 'Hola');
       MemoryManager.addMessage(customerPhone, { role: 'assistant', content: agentResponse.text });
-      
       await MetaClient.sendTextMessage(customerPhone, agentResponse.text);
       return res.status(200).send('OK');
     }
 
-    // CONTROL DE REINICIO ESTÁNDAR (Sólo permitido tras Falla de Display, donde el estado se mantiene en 'conversando')
-    if (userMessage.toLowerCase() === 'inicio' && session.metadata.status === 'conversando') {
+    // CONTROL DE REINICIO ESTÁNDAR
+    if (lowerMessage === 'inicio' && session.metadata.status === 'conversando') {
       MemoryManager.clearSession(customerPhone);
-      
       MemoryManager.addMessage(customerPhone, { role: 'user', content: 'Hola' });
       const initialSession = MemoryManager.getOrCreateSession(customerPhone);
-      
       const agentResponse = await AgentManager.processMessage(initialSession.history, 'Hola');
       MemoryManager.addMessage(customerPhone, { role: 'assistant', content: agentResponse.text });
-      
       await MetaClient.sendTextMessage(customerPhone, agentResponse.text);
       return res.status(200).send('OK');
     }
 
-    // BLOQUEO PERMANENTE EN PRODUCCIÓN: Si el cliente está transferido o descalificado por zona, el bot no procesa nada
+    // BLOQUEO PERMANENTE EN PRODUCCIÓN
     if (session.metadata.status === 'transferido' || session.metadata.status === 'descalificado') {
       return res.status(200).send('OK');
     }
 
-    // Flujo estándar: Guardar el mensaje del usuario en el historial antes de llamar a la IA
-    MemoryManager.addMessage(customerPhone, { role: 'user', content: userMessage });
+    // Intercepción por Código: Validar si el texto contiene una ciudad permitida
+    const esCiudadValida = CIUDADES_COBERTURA.some(ciudad => lowerMessage.includes(ciudad));
 
+    MemoryManager.addMessage(customerPhone, { role: 'user', content: userMessage });
     const result = await AgentManager.processMessage(session.history, userMessage);
 
-    MemoryManager.addMessage(customerPhone, { role: 'assistant', content: result.text });
+    // FORZADO DE COBERTURA: Si el código detecta ciudad válida, bloquea la descalificación errónea de la IA
+    if (result.action === 'descalificar' && esCiudadValida) {
+      const overrideText = `¡Buenísimo! ${userMessage} está dentro de nuestra zona de cobertura a domicilio. ¿Cuál es el síntoma o problema que presenta tu televisor?`;
+      MemoryManager.addMessage(customerPhone, { role: 'assistant', content: overrideText });
+      await MetaClient.sendTextMessage(customerPhone, overrideText);
+      MemoryManager.updateMetadata(customerPhone, { status: 'conversando' });
+      return res.status(200).send('OK');
+    }
 
+    MemoryManager.addMessage(customerPhone, { role: 'assistant', content: result.text });
     await MetaClient.sendTextMessage(customerPhone, result.text);
 
-    // PROCESAMIENTO LOGÍSTICO DE LAS SALIDAS
+    // PROCESAMIENTO DE SALIDAS
     if (result.action === 'transferir' && result.metadata) {
       MemoryManager.updateMetadata(customerPhone, { status: 'transferido' });
 
