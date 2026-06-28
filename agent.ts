@@ -62,7 +62,7 @@ export const AgentManager = {
       response_format: { type: 'text' }
     });
 
-    const reply = response.choices.message.content || '';
+    const reply = response.choices[0].message.content || '';
     
     if (reply.trim().startsWith('{') && reply.trim().endsWith('}')) {
       try {
