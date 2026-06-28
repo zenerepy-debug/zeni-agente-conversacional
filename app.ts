@@ -9,6 +9,9 @@ app.use(express.json());
 const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || 'zener_secret_token_2026';
 const TECHNICAL_PHONE = '595981121588';
 
+// El número del Cliente Simulado exclusivo para realizar tus pruebas continuas
+const DEV_CLIENT_PHONE = '595982545922';
+
 // 1. Verificación del Webhook de Meta (GET)
 app.get('/webhook', (req: Request, res: Response) => {
   const mode = req.query['hub.mode'];
@@ -40,11 +43,23 @@ app.post('/webhook', async (req: Request, res: Response) => {
     const userMessage = messageData.text.body.trim();
     const session = MemoryManager.getOrCreateSession(customerPhone);
 
-    // CONTROL DE REINICIO DE CHAT (Sólo permitido si el estado es 'conversando' tras Falla de Display)
+    // BYPASS SEGURO DE PRUEBAS: Resetea la memoria de Railway solo si escribe "Reiniciar" desde el número simulado
+    if (userMessage.toLowerCase() === 'reiniciar' && customerPhone === DEV_CLIENT_PHONE) {
+      MemoryManager.clearSession(customerPhone);
+      const cleanSession = MemoryManager.getOrCreateSession(customerPhone);
+      
+      MemoryManager.addMessage(customerPhone, { role: 'user', content: 'Hola' });
+      const agentResponse = await AgentManager.processMessage(cleanSession.history, 'Hola');
+      MemoryManager.addMessage(customerPhone, { role: 'assistant', content: agentResponse.text });
+      
+      await MetaClient.sendTextMessage(customerPhone, agentResponse.text);
+      return res.status(200).send('OK');
+    }
+
+    // CONTROL DE REINICIO ESTÁNDAR (Sólo permitido tras Falla de Display, donde el estado se mantiene en 'conversando')
     if (userMessage.toLowerCase() === 'inicio' && session.metadata.status === 'conversando') {
       MemoryManager.clearSession(customerPhone);
       
-      // Forzar un mensaje de saludo inicial virtual en el historial para que la IA responda con el speech nativo de Zener
       MemoryManager.addMessage(customerPhone, { role: 'user', content: 'Hola' });
       const initialSession = MemoryManager.getOrCreateSession(customerPhone);
       
@@ -55,12 +70,12 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
-    // BLOQUEO ABSOLUTO: Si el estado es transferido o descalificado (cobertura), el bot se congela permanentemente
+    // BLOQUEO PERMANENTE EN PRODUCCIÓN: Si el cliente está transferido o descalificado por zona, el bot no procesa nada
     if (session.metadata.status === 'transferido' || session.metadata.status === 'descalificado') {
       return res.status(200).send('OK');
     }
 
-    // Flujo normal: Guardar mensaje del usuario antes de procesar
+    // Flujo estándar: Guardar el mensaje del usuario en el historial antes de llamar a la IA
     MemoryManager.addMessage(customerPhone, { role: 'user', content: userMessage });
 
     const result = await AgentManager.processMessage(session.history, userMessage);
@@ -69,7 +84,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
 
     await MetaClient.sendTextMessage(customerPhone, result.text);
 
-    // PROCESAMIENTO DE SALIDAS Y CAMBIOS DE ESTADO
+    // PROCESAMIENTO LOGÍSTICO DE LAS SALIDAS
     if (result.action === 'transferir' && result.metadata) {
       MemoryManager.updateMetadata(customerPhone, { status: 'transferido' });
 
@@ -87,11 +102,9 @@ app.post('/webhook', async (req: Request, res: Response) => {
       await MetaClient.sendTemplateTransfer(TECHNICAL_PHONE, dataPayload);
 
     } else if (result.action === 'descalificar') {
-      // Bloqueo definitivo por zona de cobertura
       MemoryManager.updateMetadata(customerPhone, { status: 'descalificado' });
       
     } else if (result.action === 'display_out') {
-      // Mantiene el estado en conversando para habilitar el comando "Inicio"
       MemoryManager.updateMetadata(customerPhone, { status: 'conversando' });
     }
 
@@ -103,5 +116,4 @@ app.post('/webhook', async (req: Request, res: Response) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  // Orquestador acoplado correctamente
 });
