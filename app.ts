@@ -16,7 +16,7 @@ const CIUDADES_COBERTURA = [
   'aregua', 'luque', 'luqe', 'limpio', 'mariano', 'roque alonso'
 ];
 
-// 1. Verificación del Webhook de Meta (GET)
+// 1. Verificación obligatoria del Webhook de Meta (GET)
 app.get('/webhook', (req: Request, res: Response) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -27,7 +27,7 @@ app.get('/webhook', (req: Request, res: Response) => {
   }
   return res.sendStatus(403);
 });
-// 2. Recepción de Mensajes de WhatsApp (POST)
+// 2. Recepción y Control del Webhook de WhatsApp (POST)
 app.post('/webhook', async (req: Request, res: Response) => {
   try {
     const body = req.body;
@@ -47,7 +47,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
     const session = MemoryManager.getOrCreateSession(customerPhone);
     const lowerMessage = userMessage.toLowerCase();
 
-    // CONTROL EXCLUSIVO DE REINICIO DE PRUEBAS (DEV)
+    // BYPASS SEGURO DE DESARROLLO (Borrado absoluto de caché de pruebas)
     if (lowerMessage === 'reiniciar' && customerPhone === DEV_CLIENT_PHONE) {
       MemoryManager.clearSession(customerPhone);
       MemoryManager.getOrCreateSession(customerPhone);
@@ -57,7 +57,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
-    // CONTROL DE REINICIO ESTÁNDAR (INICIO) TRAS DISPLAY
+    // COMANDO INICIO ESTÁNDAR (Canal abierto únicamente tras Falla de Display)
     if (lowerMessage === 'inicio' && session.metadata.status === 'conversando') {
       MemoryManager.clearSession(customerPhone);
       MemoryManager.getOrCreateSession(customerPhone);
@@ -67,18 +67,18 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
-    // BLOQUEO ABSOLUTO EN PRODUCCIÓN
+    // BLOQUEO PREVENTIVO ABSOLUTO: Si ya fue transferido o descalificado, el bot se apaga
     if (session.metadata.status === 'transferido' || session.metadata.status === 'descalificado') {
       return res.status(200).send('OK');
     }
 
-    const esCiudadValida = CIUDADES_COBERTURA.some(ciudad => lowerMessage.includes(ciudad));
-
-    // Invocar extracción cognitiva del agente
+    // Registrar en memoria y llamar al transcriptor cognitivo de hechos
     MemoryManager.addMessage(customerPhone, { role: 'user', content: userMessage });
     const datos = await AgentManager.processMessage(session.history, userMessage);
 
-    // FILTRO 1: EVALUACIÓN DETERMINISTA DE COBERTURA GEOGRÁFICA
+    // =====================================================================
+    // FILTRO 1: LOGÍSTICA DE COBERTURA GEOGRÁFICA (DETERMINISTA POR CÓDIGO)
+    // =====================================================================
     if (!session.metadata.ciudad) {
       if (datos.ciudad) {
         const ciudadLimpia = datos.ciudad.toLowerCase();
@@ -103,8 +103,9 @@ app.post('/webhook', async (req: Request, res: Response) => {
         return res.status(200).send('OK');
       }
     }
-
-    // EVALUACIÓN DE RESPUESTAS REACTIVAS (FAQs NATIVAS)
+    // =====================================================================
+    // INTERCEPCIÓN DE RESPUESTAS REACTIVAS (FAQs NATIVAS POR CÓDIGO)
+    // =====================================================================
     if (datos.pregunto_faq) {
       if (lowerMessage.includes('garantia') || lowerMessage.includes('garantía')) {
         const msgGarantia = 'Todas las reparaciones cuentan con 6 meses de garantía escrita, la cual cubre tanto la mano de obra como el repuesto cambiado.';
@@ -122,39 +123,59 @@ app.post('/webhook', async (req: Request, res: Response) => {
         return res.status(200).send('OK');
       }
     }
-    // FILTRO 2 Y 3: MATRIZ DE FALLAS Y LOGÍSTICA DE TRANSFERENCIA
+
+    // =====================================================================
+    // FILTRO 2: EVALUACIÓN DE SÍNTOMAS Y PRE-VERIFICACIÓN (SOFTWARE SOBERANO)
+    // =====================================================================
     if (!session.metadata.sintoma) {
+      // 1. PRIORIDAD MÁXIMA GOLPES/DISPLAY: Aborta en el acto sin pasos innecesarios
       if (datos.menciona_golpe_o_caida || datos.sintoma_display) {
         session.metadata.sintoma = 'display';
-        const msgDisplay = 'El síntoma que indicas corresponds a una falla de display. Lamentablemente, en Zener no reparamos ni cambiamos pantallas. Te comentamos que el costo de un panel original de repuesto supera el 80% o 90% del valor de un televisor nuevo de paquete, haciendo inviable la inversión. Si deseas consultar por un equipo diferente, puedes escribir la palabra "Inicio" para comenzar de nuevo.';
+        const msgDisplay = 'El síntoma que indicas corresponde a una falla de display. Lamentablemente, en Zener no reparamos ni cambiamos pantallas. Te comentamos que el costo de un panel original de repuesto supera el 80% o 90% del valor de un televisor nuevo de paquete, haciendo inviable la inversión. Si deseas consultar por un equipo diferente, puedes escribir la palabra "Inicio" para comenzar de nuevo.';
         MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgDisplay });
         await MetaClient.sendTextMessage(customerPhone, msgDisplay);
         return res.status(200).send('OK');
       }
 
+      // 2. PRIORIDAD MEDIA ILUMINACIÓN LED: Frena y obliga a verificar el estado físico antes de calificar
       if (datos.sintoma_led) {
-        session.metadata.sintoma = 'led';
-        const msgLed = 'El síntoma que indicas corresponde a una falla en los LED. ¿Cuál es la marca y el tamaño en pulgadas de tu televisor?';
-        MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgLed });
-        await MetaClient.sendTextMessage(customerPhone, msgLed);
-        return res.status(200).send('OK');
+        const yaVerificoTexto = lowerMessage.includes('oscura') || lowerMessage.includes('apagada') || lowerMessage.includes('fondo') || lowerMessage.includes('muerto') || lowerMessage.includes('linterna');
+        
+        if (!yaVerificoTexto) {
+          const msgVerificar = '¿La pantalla está totalmente oscura/apagada o tiene alguna iluminación grisácea, parpadeo o rayas?';
+          MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgVerificar });
+          await MetaClient.sendTextMessage(customerPhone, msgVerificar);
+          return res.status(200).send('OK');
+        } else {
+          session.metadata.sintoma = 'led';
+          const msgLed = 'El síntoma que indicas corresponde a una falla en los LED. ¿Cuál es la marca de tu televisor?';
+          MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgLed });
+          await MetaClient.sendTextMessage(customerPhone, msgLed);
+          return res.status(200).send('OK');
+        }
       }
 
+      // 3. PRIORIDAD BAJA PLACA ELECTRONICA (FUENTE O MAIN)
       if (datos.sintoma_placa) {
         session.metadata.sintoma = 'placa';
-        const msgPlaca = 'El síntoma que indicas corresponde a una falla de placa. ¿Cuál es la marca y el tamaño en pulgadas de tu televisor?';
+        const msgPlaca = 'El síntoma que indicas corresponde a una falla de placa. ¿Cuál es la marca de tu televisor?';
         MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgPlaca });
         await MetaClient.sendTextMessage(customerPhone, msgPlaca);
         return res.status(200).send('OK');
       }
 
+      // Pregunta de escape fija en caso de desvíos extremos o ambigüedad
       const msgDuda = '¿Me podrías precisar un detalle? ¿El televisor emite sonido de fondo, se queda completamente muerto sin dar luces ni piloto, o presenta alguna línea o raya en la pantalla?';
       await MetaClient.sendTextMessage(customerPhone, msgDuda);
       return res.status(200).send('OK');
     }
 
+    // =====================================================================
+    // FILTROS 3 Y 4: LOGÍSTICA CRONOLÓGICA DE MARCA Y TAMAÑO
+    // =====================================================================
     if (session.metadata.sintoma === 'led' || session.metadata.sintoma === 'placa') {
-      if (datos.marca_tamano || userMessage.length > 3) {
+      // Si ya tenemos la marca guardada en metadata, el mensaje actual corresponde al tamaño
+      if (session.metadata.marca) {
         const tipoFalla = session.metadata.sintoma === 'led' ? 'en los LED' : 'de placa';
         const textSuccess = `Excelente, el síntoma que indicas corresponde a una falla ${tipoFalla}, un técnico asignado a tu caso te escribirá directamente desde su número para darte un presupuesto.`;
         
@@ -162,7 +183,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
         MemoryManager.addMessage(customerPhone, { role: 'assistant', content: textSuccess });
         await MetaClient.sendTextMessage(customerPhone, textSuccess);
 
-        // Procedimiento Estricto: Descomposición de la URL base wa.me en caracteres individuales concatenados
+        // PROCEDIMIENTO ESTRICTO DE OFUSCACIÓN: Descomposición de la URL base wa.me en caracteres individuales
         const linkParts = ['w', 'a', '.', 'm', 'e', '/'];
         const waLink = linkParts.join('') + customerPhone;
         const resumenSintoma = session.metadata.sintoma === 'led' ? 'Sistema de iluminación LED quemado' : 'Falla electrónica en Placa (Fuente/Main)';
@@ -171,17 +192,26 @@ app.post('/webhook', async (req: Request, res: Response) => {
           `*NUEVO CLIENTE CALIFICADO*`,
           `📱 *Contacto*: ${waLink}`,
           `📍 *Ciudad*: ${session.metadata.ciudad}`,
-          `📺 *Equipo*: ${userMessage}`,
+          `📺 *Equipo*: ${session.metadata.marca} de ${userMessage}`,
           `🛠️ *Síntoma*: ${resumenSintoma}`
         ].join('\n');
 
-        // Gatillar de forma nativa e infalible la transferencia física al WhatsApp del técnico
+        // Ejecutar despacho de transferencia física al WhatsApp del técnico sin errores de tipado
         await MetaClient.sendTemplateTransfer(TECHNICAL_PHONE, dataPayload);
         return res.status(200).send('OK');
       } else {
-        const pedirDatos = '¿Me confirmarías la marca y el tamaño en pulgadas de tu televisor? Si no los sabes, puedes enviarme una foto de la etiqueta trasera.';
-        await MetaClient.sendTextMessage(customerPhone, pedirDatos);
-        return res.status(200).send('OK');
+        // Guardamos la marca y avanzamos estrictamente al tamaño
+        if (datos.marca || userMessage.length > 2) {
+          session.metadata.marca = datos.marca || userMessage;
+          const pedirPulgadas = '¿Y de cuántas pulgadas sería?';
+          MemoryManager.addMessage(customerPhone, { role: 'assistant', content: pedirPulgadas });
+          await MetaClient.sendTextMessage(customerPhone, pedirPulgadas);
+          return res.status(200).send('OK');
+        } else {
+          const pedirMarca = '¿De qué marca es tu televisor? Si no la sabes, puedes enviarme una foto de la etiqueta trasera.';
+          await MetaClient.sendTextMessage(customerPhone, pedirMarca);
+          return res.status(200).send('OK');
+        }
       }
     }
 
