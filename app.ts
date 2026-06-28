@@ -16,6 +16,7 @@ const CIUDADES_COBERTURA = [
   'aregua', 'luque', 'luqe', 'limpio', 'mariano', 'roque alonso'
 ];
 
+// 1. Verificación del Webhook de Meta (GET)
 app.get('/webhook', (req: Request, res: Response) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -26,7 +27,7 @@ app.get('/webhook', (req: Request, res: Response) => {
   }
   return res.sendStatus(403);
 });
-
+// 2. Recepción de Mensajes de WhatsApp (POST)
 app.post('/webhook', async (req: Request, res: Response) => {
   try {
     const body = req.body;
@@ -46,90 +47,142 @@ app.post('/webhook', async (req: Request, res: Response) => {
     const session = MemoryManager.getOrCreateSession(customerPhone);
     const lowerMessage = userMessage.toLowerCase();
 
-    // BYPASS SEGURO DE PRUEBAS PARA EL CLIENTE SIMULADO
+    // CONTROL EXCLUSIVO DE REINICIO DE PRUEBAS (DEV)
     if (lowerMessage === 'reiniciar' && customerPhone === DEV_CLIENT_PHONE) {
       MemoryManager.clearSession(customerPhone);
-      const cleanSession = MemoryManager.getOrCreateSession(customerPhone);
-      MemoryManager.addMessage(customerPhone, { role: 'user', content: 'Hola' });
-      const agentResponse = await AgentManager.processMessage(cleanSession.history, 'Hola');
-      MemoryManager.addMessage(customerPhone, { role: 'assistant', content: agentResponse.text });
-      await MetaClient.sendTextMessage(customerPhone, agentResponse.text);
+      MemoryManager.getOrCreateSession(customerPhone);
+      const openMessage = '¡Hola! Te saluda ZENI de Zener Servicio Técnico. ¿En qué ciudad te encuentras?';
+      MemoryManager.addMessage(customerPhone, { role: 'assistant', content: openMessage });
+      await MetaClient.sendTextMessage(customerPhone, openMessage);
       return res.status(200).send('OK');
     }
 
-    // CONTROL DE REINICIO ESTÁNDAR TRAS DISPLAY
+    // CONTROL DE REINICIO ESTÁNDAR (INICIO) TRAS DISPLAY
     if (lowerMessage === 'inicio' && session.metadata.status === 'conversando') {
       MemoryManager.clearSession(customerPhone);
-      MemoryManager.addMessage(customerPhone, { role: 'user', content: 'Hola' });
-      const initialSession = MemoryManager.getOrCreateSession(customerPhone);
-      const agentResponse = await AgentManager.processMessage(initialSession.history, 'Hola');
-      MemoryManager.addMessage(customerPhone, { role: 'assistant', content: agentResponse.text });
-      await MetaClient.sendTextMessage(customerPhone, agentResponse.text);
+      MemoryManager.getOrCreateSession(customerPhone);
+      const openMessage = '¡Hola! Te saluda ZENI de Zener Servicio Técnico. ¿En qué ciudad te encuentras?';
+      MemoryManager.addMessage(customerPhone, { role: 'assistant', content: openMessage });
+      await MetaClient.sendTextMessage(customerPhone, openMessage);
       return res.status(200).send('OK');
     }
 
-    // BLOQUEO PERMANENTE EN PRODUCCIÓN
+    // BLOQUEO ABSOLUTO EN PRODUCCIÓN
     if (session.metadata.status === 'transferido' || session.metadata.status === 'descalificado') {
       return res.status(200).send('OK');
     }
 
     const esCiudadValida = CIUDADES_COBERTURA.some(ciudad => lowerMessage.includes(ciudad));
 
+    // Invocar extracción cognitiva del agente
     MemoryManager.addMessage(customerPhone, { role: 'user', content: userMessage });
-    const result = await AgentManager.processMessage(session.history, userMessage);
+    const datos = await AgentManager.processMessage(session.history, userMessage);
 
-    // INTERCEPCIÓN NATIVA DE CIUDADES EN COBERTURA
-    if (result.action === 'descalificar' && esCiudadValida) {
-      const overrideText = `¡Buenísimo! ${userMessage} está dentro de nuestra zona de cobertura a domicilio. ¿Cuál es el síntoma o problema que presenta tu televisor?`;
-      MemoryManager.addMessage(customerPhone, { role: 'assistant', content: overrideText });
-      await MetaClient.sendTextMessage(customerPhone, overrideText);
-      MemoryManager.updateMetadata(customerPhone, { status: 'conversando' });
+    // FILTRO 1: EVALUACIÓN DETERMINISTA DE COBERTURA GEOGRÁFICA
+    if (!session.metadata.ciudad) {
+      if (datos.ciudad) {
+        const ciudadLimpia = datos.ciudad.toLowerCase();
+        const esValida = CIUDADES_COBERTURA.some(c => ciudadLimpia.includes(c));
+
+        if (esValida) {
+          session.metadata.ciudad = datos.ciudad;
+          const nextMsg = `¡Buenísimo! ${datos.ciudad} está dentro de nuestra zona de cobertura a domicilio. ¿Cuál es el síntoma o problema que presenta tu televisor?`;
+          MemoryManager.addMessage(customerPhone, { role: 'assistant', content: nextMsg });
+          await MetaClient.sendTextMessage(customerPhone, nextMsg);
+          return res.status(200).send('OK');
+        } else {
+          session.metadata.status = 'descalificado';
+          const outZona = `Lamentablemente, por el momento no contamos con cobertura en ${datos.ciudad} y tampoco recibimos televisores por encomienda desde el interior. ¡Gracias por tu comprensión!`;
+          MemoryManager.addMessage(customerPhone, { role: 'assistant', content: outZona });
+          await MetaClient.sendTextMessage(customerPhone, outZona);
+          return res.status(200).send('OK');
+        }
+      } else {
+        const pedirCiudad = '¿En qué ciudad te encuentras?';
+        await MetaClient.sendTextMessage(customerPhone, pedirCiudad);
+        return res.status(200).send('OK');
+      }
+    }
+
+    // EVALUACIÓN DE RESPUESTAS REACTIVAS (FAQs NATIVAS)
+    if (datos.pregunto_faq) {
+      if (lowerMessage.includes('garantia') || lowerMessage.includes('garantía')) {
+        const msgGarantia = 'Todas las reparaciones cuentan con 6 meses de garantía escrita, la cual cubre tanto la mano de obra como el repuesto cambiado.';
+        await MetaClient.sendTextMessage(customerPhone, msgGarantia);
+        return res.status(200).send('OK');
+      }
+      if (lowerMessage.includes('todos los led') || lowerMessage.includes('cambian todos')) {
+        const msgLeds = 'Sí, nuestra política de calidad es realizar el cambio completo de todos los LED de forma individual para garantizar un trabajo de fábrica.';
+        await MetaClient.sendTextMessage(customerPhone, msgLeds);
+        return res.status(200).send('OK');
+      }
+      if (lowerMessage.includes('precio') || lowerMessage.includes('cuanto') || lowerMessage.includes('costo') || lowerMessage.includes('presupuesto')) {
+        const msgPresupuesto = 'Con gusto, el servicio técnico se encargará de darte el presupuesto final y coordinar el día y horario de la visita en un momento.';
+        await MetaClient.sendTextMessage(customerPhone, msgPresupuesto);
+        return res.status(200).send('OK');
+      }
+    }
+    // FILTRO 2 Y 3: MATRIZ DE FALLAS Y LOGÍSTICA DE TRANSFERENCIA
+    if (!session.metadata.sintoma) {
+      if (datos.menciona_golpe_o_caida || datos.sintoma_display) {
+        session.metadata.sintoma = 'display';
+        const msgDisplay = 'El síntoma que indicas corresponds a una falla de display. Lamentablemente, en Zener no reparamos ni cambiamos pantallas. Te comentamos que el costo de un panel original de repuesto supera el 80% o 90% del valor de un televisor nuevo de paquete, haciendo inviable la inversión. Si deseas consultar por un equipo diferente, puedes escribir la palabra "Inicio" para comenzar de nuevo.';
+        MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgDisplay });
+        await MetaClient.sendTextMessage(customerPhone, msgDisplay);
+        return res.status(200).send('OK');
+      }
+
+      if (datos.sintoma_led) {
+        session.metadata.sintoma = 'led';
+        const msgLed = 'El síntoma que indicas corresponde a una falla en los LED. ¿Cuál es la marca y el tamaño en pulgadas de tu televisor?';
+        MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgLed });
+        await MetaClient.sendTextMessage(customerPhone, msgLed);
+        return res.status(200).send('OK');
+      }
+
+      if (datos.sintoma_placa) {
+        session.metadata.sintoma = 'placa';
+        const msgPlaca = 'El síntoma que indicas corresponde a una falla de placa. ¿Cuál es la marca y el tamaño en pulgadas de tu televisor?';
+        MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgPlaca });
+        await MetaClient.sendTextMessage(customerPhone, msgPlaca);
+        return res.status(200).send('OK');
+      }
+
+      const msgDuda = '¿Me podrías precisar un detalle? ¿El televisor emite sonido de fondo, se queda completamente muerto sin dar luces ni piloto, o presenta alguna línea o raya en la pantalla?';
+      await MetaClient.sendTextMessage(customerPhone, msgDuda);
       return res.status(200).send('OK');
     }
 
-    // Enviar la respuesta limpia al cliente de forma garantizada
-    MemoryManager.addMessage(customerPhone, { role: 'assistant', content: result.text });
-    await MetaClient.sendTextMessage(customerPhone, result.text);
+    if (session.metadata.sintoma === 'led' || session.metadata.sintoma === 'placa') {
+      if (datos.marca_tamano || userMessage.length > 3) {
+        const tipoFalla = session.metadata.sintoma === 'led' ? 'en los LED' : 'de placa';
+        const textSuccess = `Excelente, el síntoma que indicas corresponde a una falla ${tipoFalla}, un técnico asignado a tu caso te escribirá directamente desde su número para darte un presupuesto.`;
+        
+        session.metadata.status = 'transferido';
+        MemoryManager.addMessage(customerPhone, { role: 'assistant', content: textSuccess });
+        await MetaClient.sendTextMessage(customerPhone, textSuccess);
 
-    // GESTIÓN DE ACCIONES Y TRANSFERENCIA AL TÉCNICO VÍA INTERCEPCIÓN DE FLAGS
-    if (result.action === 'transferir') {
-      MemoryManager.updateMetadata(customerPhone, { status: 'transferido' });
+        // Procedimiento Estricto: Descomposición de la URL base wa.me en caracteres individuales concatenados
+        const linkParts = ['w', 'a', '.', 'm', 'e', '/'];
+        const waLink = linkParts.join('') + customerPhone;
+        const resumenSintoma = session.metadata.sintoma === 'led' ? 'Sistema de iluminación LED quemado' : 'Falla electrónica en Placa (Fuente/Main)';
 
-      // Procedimiento Estricto: Descomposición de la URL base wa.me en caracteres individuales concatenados
-      const linkParts = ['w', 'a', '.', 'm', 'e', '/'];
-      const waLink = linkParts.join('') + customerPhone;
+        const dataPayload = [
+          `*NUEVO CLIENTE CALIFICADO*`,
+          `📱 *Contacto*: ${waLink}`,
+          `📍 *Ciudad*: ${session.metadata.ciudad}`,
+          `📺 *Equipo*: ${userMessage}`,
+          `🛠️ *Síntoma*: ${resumenSintoma}`
+        ].join('\n');
 
-      // Extracción limpia de metadatos desde el historial real para el resumen del técnico
-      let ciudadResumen = 'Verificar en chat';
-      for (const h of session.history) {
-        if (h.role === 'user') {
-          const lowerH = String(h.content).toLowerCase();
-          const found = CIUDADES_COBERTURA.find(c => lowerH.includes(c));
-          if (found) {
-            ciudadResumen = String(h.content);
-            break;
-          }
-        }
+        // Gatillar de forma nativa e infalible la transferencia física al WhatsApp del técnico
+        await MetaClient.sendTemplateTransfer(TECHNICAL_PHONE, dataPayload);
+        return res.status(200).send('OK');
+      } else {
+        const pedirDatos = '¿Me confirmarías la marca y el tamaño en pulgadas de tu televisor? Si no los sabes, puedes enviarme una foto de la etiqueta trasera.';
+        await MetaClient.sendTextMessage(customerPhone, pedirDatos);
+        return res.status(200).send('OK');
       }
-
-      const sintomaResumen = result.category === 'led' ? 'Sistema de iluminación LED quemado' : 'Falla electrónica en Placa (Fuente/Main)';
-
-      const dataPayload = [
-        `*NUEVO CLIENTE CALIFICADO*`,
-        `📱 *Contacto*: ${waLink}`,
-        `📍 *Ciudad*: ${ciudadResumen}`,
-        `📺 *Equipo*: ${userMessage}`,
-        `🛠️ *Síntoma*: ${sintomaResumen}`
-      ].join('\n');
-
-      // Envío de la transferencia física a tu número a través del cliente Meta
-      await MetaClient.sendTemplateTransfer(TECHNICAL_PHONE, dataPayload);
-
-    } else if (result.action === 'descalificar') {
-      MemoryManager.updateMetadata(customerPhone, { status: 'descalificado' });
-      
-    } else if (result.action === 'display_out') {
-      MemoryManager.updateMetadata(customerPhone, { status: 'conversando' });
     }
 
     return res.status(200).send('OK');
