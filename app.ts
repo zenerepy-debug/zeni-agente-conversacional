@@ -46,6 +46,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
     const session = MemoryManager.getOrCreateSession(customerPhone);
     const lowerMessage = userMessage.toLowerCase();
 
+    // BYPASS SEGURO DE PRUEBAS PARA EL CLIENTE SIMULADO
     if (lowerMessage === 'reiniciar' && customerPhone === DEV_CLIENT_PHONE) {
       MemoryManager.clearSession(customerPhone);
       const cleanSession = MemoryManager.getOrCreateSession(customerPhone);
@@ -56,6 +57,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
+    // CONTROL DE REINICIO ESTÁNDAR TRAS DISPLAY
     if (lowerMessage === 'inicio' && session.metadata.status === 'conversando') {
       MemoryManager.clearSession(customerPhone);
       MemoryManager.addMessage(customerPhone, { role: 'user', content: 'Hola' });
@@ -66,6 +68,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
+    // BLOQUEO ABSOLUTO EN PRODUCCIÓN
     if (session.metadata.status === 'transferido' || session.metadata.status === 'descalificado') {
       return res.status(200).send('OK');
     }
@@ -75,6 +78,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
     MemoryManager.addMessage(customerPhone, { role: 'user', content: userMessage });
     const result = await AgentManager.processMessage(session.history, userMessage);
 
+    // INTERCEPCIÓN NATIVA DE CIUDADES EN COBERTURA
     if (result.action === 'descalificar' && esCiudadValida) {
       const overrideText = `¡Buenísimo! ${userMessage} está dentro de nuestra zona de cobertura a domicilio. ¿Cuál es el síntoma o problema que presenta tu televisor?`;
       MemoryManager.addMessage(customerPhone, { role: 'assistant', content: overrideText });
@@ -83,23 +87,36 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
+    // Enviar la respuesta limpia al cliente
     MemoryManager.addMessage(customerPhone, { role: 'assistant', content: result.text });
     await MetaClient.sendTextMessage(customerPhone, result.text);
 
+    // GESTIÓN DE ACCIONES Y TRANSFERENCIA AL TÉCNICO
     if (result.action === 'transferir') {
       MemoryManager.updateMetadata(customerPhone, { status: 'transferido' });
 
+      // Procedimiento Estricto: Descomposición de la URL base wa.me en caracteres individuales concatenados
       const linkParts = ['w', 'a', '.', 'm', 'e', '/'];
       const waLink = linkParts.join('') + customerPhone;
+
+      // Extracción limpia de metadatos desde el historial real para el resumen del técnico
+      const findMetadata = (role: 'user' | 'assistant', keywords: string[]) => {
+        const msg = session.history.find(h => h.role === role && keywords.some(k => String(h.content).toLowerCase().includes(k)));
+        return msg ? String(msg.content) : '';
+      };
+
+      const ciudadResumen = findMetadata('user', CIUDADES_COBERTURA) || 'Verificar en chat';
+      const sintomaResumen = result.category === 'led' ? 'Sistema de iluminación LED quemado' : 'Falla electrónica en Placa (Fuente/Main)';
 
       const dataPayload = [
         `*NUEVO CLIENTE CALIFICADO*`,
         `📱 *Contacto*: ${waLink}`,
-        `📍 *Ciudad*: ${result.metadata?.ciudad || 'Detectada'}`,
-        `📺 *Equipo*: ${result.metadata?.marca || 'Especificada'}`,
-        `🛠️ *Síntoma*: ${result.metadata?.sintoma || 'Calificado por Zeni'}`
+        `📍 *Ciudad*: ${ciudadResumen}`,
+        `📺 *Equipo*: ${userMessage}`,
+        `🛠️ *Síntoma*: ${sintomaResumen}`
       ].join('\n');
 
+      // Envío de la transferencia física a tu número a través del cliente Meta
       await MetaClient.sendTemplateTransfer(TECHNICAL_PHONE, dataPayload);
 
     } else if (result.action === 'descalificar') {
