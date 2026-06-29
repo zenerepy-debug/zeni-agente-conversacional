@@ -1,7 +1,6 @@
 import express, { Request, Response } from 'express';
 import { MemoryManager } from './memory';
 import { MetaClient } from './metaClient';
-import { AgentManager } from './agent';
 
 const app = express();
 app.use(express.json());
@@ -10,14 +9,70 @@ const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || 'zener_secret_token_202
 const TECHNICAL_PHONE = '595981121588';
 const DEV_CLIENT_PHONE = '595982545922';
 
-// Lista rígida oficial en minúsculas y sin acentos para la validación exacta en el servidor
-const CIUDADES_COBERTURA = [
-  'asuncion', 'lambare', 'villa elisa', 'nemby', 'san antonio', 
-  'fernando de la mora', 'capiata', 'san lorenzo', 'aregua', 'luque', 
-  'limpio', 'mariano roque alonso'
+// =====================================================================
+// DICCIONARIOS DE DATOS RÍGIDOS OPTIMIZADOS PARA LÍMITES DE META API
+// =====================================================================
+
+const LISTA_CIUDADES_1 = [
+  { id: 'c_asuncion', title: 'Asunción', description: 'Capital y barrios' },
+  { id: 'c_lambare', title: 'Lambaré', description: 'Zonas de cobertura' },
+  { id: 'c_villa_elisa', title: 'Villa Elisa', description: 'Zonas de cobertura' },
+  { id: 'c_nemby', title: 'Ñemby', description: 'Zonas de cobertura' },
+  { id: 'c_san_antonio', title: 'San Antonio', description: 'Zonas de cobertura' },
+  { id: 'c_fdo_mora', title: 'Fernando de la Mora', description: 'Zona Norte y Sur' },
+  { id: 'c_sig_1', title: 'Siguiente Lista ➡️', description: 'Ver más ciudades de cobertura' }
 ];
 
-// 1. Verificación obligatoria del Webhook de Meta (GET)
+const LISTA_CIUDADES_2 = [
+  { id: 'c_capiata', title: 'Capiatá', description: 'Ruta 1 y Ruta 2' },
+  { id: 'c_san_lorenzo', title: 'San Lorenzo', description: 'Zonas de cobertura' },
+  { id: 'c_aregua', title: 'Areguá', description: 'Zonas de cobertura' },
+  { id: 'c_luque', title: 'Luque', description: 'Zonas de cobertura' },
+  { id: 'c_limpio', title: 'Limpio', description: 'Zonas de cobertura' },
+  { id: 'c_mra', title: 'Mariano Roque Alonso', description: 'Zonas de cobertura' },
+  { id: 'c_descalificar', title: 'Otra ciudad/Interior', description: 'Fuera de zona de cobertura' }
+];
+
+const BOTONES_CATEGORIAS = [
+  { id: 'cat_display', title: 'Falla de Display' },
+  { id: 'cat_led', title: 'Falla de LEDs' },
+  { id: 'cat_placa', title: 'Falla de Placa' }
+];
+
+const LISTA_DISPLAY_1 = [
+  { id: 'd_vidrio', title: 'Vidrio Estrellado', description: 'Grietas en forma de telaraña' },
+  { id: 'd_fisura', title: 'Fisura Interna', description: 'Vidrio sano pero roto al encender' },
+  { id: 'd_punto', title: 'Punto de Impacto', description: 'Lineas que salen de un golpe' },
+  { id: 'd_caida', title: 'Caída desde Altura', description: 'Se soltó de soporte o del mueble' },
+  { id: 'd_objeto', title: 'Impacto por Objeto', description: 'Golpe de juguete, control o pelota' },
+  { id: 'd_presion', title: 'Presión Excesiva', description: 'Apretado fuerte al limpiar' },
+  { id: 'd_rayas_v', title: 'Rayas de Colores', description: 'Líneas finas verticales' },
+  { id: 'd_rayas_h', title: 'Rayas Horizontales', description: 'Líneas de costado a costado' },
+  { id: 'd_sig_1', title: 'Siguiente Lista ➡️', description: 'Ver más síntomas de display' }
+];
+
+const LISTA_DISPLAY_2 = [
+  { id: 'd_franja_n', title: 'Franja Gruesa Negra', description: 'Barra oscura vertical/horizontal' },
+  { id: 'd_franja_b', title: 'Franja Blanca Fija', description: 'Bloque blanco brillante' },
+  { id: 'd_tinta', title: 'Mancha de Tinta', description: 'Círculos oscuros de líquido' },
+  { id: 'd_chorreado', title: 'Pantalla Chorreada', description: 'Manchas que se expanden abajo' },
+  { id: 'd_humedad', title: 'Humedad en el Borde', description: 'Líquido directo en marco inferior' },
+  { id: 'd_tiembla', title: 'Imagen que Tiembla', description: 'Video vibra o salta constante' },
+  { id: 'd_estrobo', title: 'Efecto Estroboscópico', description: 'Parpadeo rápido todo el tiempo' },
+  { id: 'd_doble', title: 'Imagen Doble', description: 'Siluetas superpuestas' },
+  { id: 'd_sig_2', title: 'Siguiente Lista ➡️', description: 'Ver más síntomas de display' }
+];
+
+const LISTA_DISPLAY_3 = [
+  { id: 'd_congelada', title: 'Imagen Congelada', description: 'Video fijo con sonido corriendo' },
+  { id: 'd_blanco', title: 'Pantalla en Blanco', description: 'Prende uniforme sin dar letras' },
+  { id: 'd_gris', title: 'Pantalla Grisácea', description: 'Tono gris/azulado con luz y audio' },
+  { id: 'd_desvanece', title: 'Desvanecimiento', description: 'Arranca bien y se borra a negro' },
+  { id: 'd_partida', title: 'Pantalla Partida', description: 'Mitad bien y mitad con fallas' },
+  { id: 'd_lineas_c', title: 'Líneas que Cambian', description: 'Se mueven al tocar el marco' }
+];
+
+// 1. Verificación del Webhook de Meta (GET)
 app.get('/webhook', (req: Request, res: Response) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -28,186 +83,354 @@ app.get('/webhook', (req: Request, res: Response) => {
   }
   return res.sendStatus(403);
 });
+const LISTA_LED_1 = [
+  { id: 'l_oscura', title: 'Pantalla Oscura Total', description: 'Prende pero se queda 100% apagada' },
+  { id: 'l_sin_luz', title: 'Pantalla Sin Nada Luz', description: 'Arranca pero sin luz interna' },
+  { id: 'l_sonido', title: 'Sonido Activo', description: 'Audio de canales o apps perfecto' },
+  { id: 'l_volumen', title: 'Volumen Operativo', description: 'Se escucha subir o bajar el volumen' },
+  { id: 'l_control', title: 'Respuesta al Control', description: 'Piloto parpadea pero sigue negra' },
+  { id: 'l_canal', title: 'Se Escucha el Canal', description: 'Canal se oye bien pero TV negra' },
+  { id: 'l_standby', title: 'Luz Standby Activa', description: 'Lucecita roja cambia normal' },
+  { id: 'l_cambio', title: 'Cambio por Sonido', description: 'Se nota cambio de canal por audio' },
+  { id: 'l_sig_1', title: 'Siguiente Lista ➡️', description: 'Ver más síntomas de iluminación LED' }
+];
 
+const LISTA_LED_2 = [
+  { id: 'l_apenitas', title: 'Imagen Se Ve Apenitas', description: 'Video visible solo de muy cerca' },
+  { id: 'l_fondo', title: 'Imagen Se Ve de Fondo', description: 'Canales corriendo bajo la oscuridad' },
+  { id: 'l_total', title: 'Imagen Total Oscura', description: 'Funciona con audio pero no se distingue' },
+  { id: 'l_sin_b', title: 'Imagen Sin Brillo', description: 'Prende sin fuerza de luz interna' },
+  { id: 'l_bajo_b', title: 'Imagen Bajo Brillo', description: 'Bajo brillo extremo que no cambia' },
+  { id: 'l_linterna', title: 'Siluetas con Linterna', description: 'Sombras al alumbrar con celular' },
+  { id: 'l_menu', title: 'Letras de Menú Fondo', description: 'Letras tenues del menú con linterna' },
+  { id: 'l_cuarto', title: 'Imagen Cuarto Oscuro', description: 'Imagen fantasmal visible sin luces' },
+  { id: 'l_sig_2', title: 'Siguiente Lista ➡️', description: 'Ver más síntomas de iluminación LED' }
+];
+
+const LISTA_LED_3 = [
+  { id: 'l_azul', title: 'Efecto Pantalla Azul', description: 'Tono azul fuerte o celeste fijo' },
+  { id: 'l_violeta', title: 'Efecto Pantalla Violeta', description: 'Imagen opaca teñida por desgaste' },
+  { id: 'l_morada', title: 'Efecto Pantalla Morada', description: 'Se ve morado y cansa la vista' },
+  { id: 'l_flash', title: 'Parpadeo Inicial Flash', description: 'Destello rápido de un milisegundo' },
+  { id: 'l_logo_seg', title: 'Logo por un Segundo', description: 'Muestra logo y se apaga con audio' },
+  { id: 'l_retro', title: 'Sin Luz de Retro', description: 'Se quedó sin luz de retroiluminación' },
+  { id: 'l_apagado_p', title: 'Apagado tras Parpadeo', description: 'Luz amaga y se apaga definitivo' },
+  { id: 'l_rato', title: 'Luz se Apaga al Rato', description: 'Prende bien y se corta a los minutos' },
+  { id: 'l_erratico', title: 'Brillo Sube y Baja', description: 'Intensidad de luz parpadea' }
+];
+
+const LISTA_PLACA_1 = [
+  { id: 'p_muerto', title: 'Totalmente Muerto', description: 'No enciende nada, sin standby' },
+  { id: 'p_stby_ap', title: 'Luz Standby Apagada', description: 'Piloto del frente apagado sin brillo' },
+  { id: 'p_rayo', title: 'Fallo por Rayo', description: 'Dejó de prender tras tormenta' },
+  { id: 'p_corte', title: 'Fallo por Corte Luz', description: 'No prendió luego de un apagón' },
+  { id: 'p_stby_f', title: 'Standby Fijo', description: 'Luz roja fija pero no reacciona' },
+  { id: 'p_stby_i', title: 'Standby Intermitente', description: 'Luz frontal parpadea infinito' },
+  { id: 'p_bucle', title: 'Bucle Reinicio Logo', description: 'Muestra logo y se reinicia solo' },
+  { id: 'p_congelado', title: 'Congelado en el Logo', description: 'Clavado fijo en la marca' },
+  { id: 'p_smart_c', title: 'Smart TV Colgado', description: 'Congelado cargando el sistema' },
+  { id: 'p_sig_1', title: 'Siguiente Lista ➡️', description: 'Ver más síntomas de placa' }
+];
+
+const LISTA_PLACA_2 = [
+  { id: 'p_apps', title: 'Apps Bloqueadas', description: 'Se cierra YouTube o Netflix solo' },
+  { id: 'p_hdmi', title: 'Puertos HDMI sin Señal', description: 'Cartel Sin Señal con decos o Play' },
+  { id: 'p_wifi', title: 'Fallo Wi-Fi Bluetooth', description: 'No activa red ni detecta control' },
+  { id: 'p_mudo', title: 'Mudo Imagen Normal', description: 'Video perfecto pero sin sonido' },
+  { id: 'p_lluvia', title: 'Audio con Lluvia', description: 'Zumbido eléctrico o ruido fuerte' },
+  { id: 'p_termico', title: 'Apagado Aleatorio', description: 'Funciona minutos y corta por calor' },
+  { id: 'p_ajustes', title: 'No Guarda Ajustes', description: 'Borra claves o canales al apagar' },
+  { id: 'p_solo', title: 'Prende Solo', description: 'Se enciende de forma automática' },
+  { id: 'p_botones', title: 'No Responde Botones', description: 'Botonera física no obedece' },
+  { id: 'p_quemado', title: 'Olor a Quemado', description: 'Chispazo u olor a plástico quemado' }
+];
+
+const LISTA_MARCAS = [
+  { id: 'm_samsung', title: 'Samsung', description: 'Incluye Sansung, Samzung, Sanzun' },
+  { id: 'm_lg', title: 'LG', description: 'Incluye Elyi, Elgi, L.G' },
+  { id: 'm_tokyo', title: 'Tokyo', description: 'Incluye Tokio, Toquio' },
+  { id: 'm_tcl', title: 'TCL', description: 'Incluye Tecel, T.C.L' },
+  { id: 'm_sony', title: 'Sony', description: 'Incluye Soni, Bravia' },
+  { id: 'm_philips', title: 'Philips', description: 'Incluye Philip, Filis' },
+  { id: 'm_aoc', title: 'AOC', description: 'Incluye A.O.C' },
+  { id: 'm_hisense', title: 'Hisense', description: 'Incluye Haisens, Hisen' },
+  { id: 'm_fama', title: 'Fama', description: 'Incluye Famatv' },
+  { id: 'm_generica', title: 'Marca Genérica', description: 'Midas, Win, JVC, Jam, James, etc.' }
+];
+
+const LISTA_TAMANOS_1 = [
+  { id: 't_32', title: '32 Pulgadas', description: 'Modelos de 32", 32p o treinta y dos' },
+  { id: 't_39', title: '39 Pulgadas', description: 'Modelos de 39", 39p' },
+  { id: 't_40', title: '40 Pulgadas', description: 'Modelos de 40", 40p o cuarenta' },
+  { id: 't_42', title: '42 Pulgadas', description: 'Modelos de 42", 42p' },
+  { id: 't_43', title: '43 Pulgadas', description: 'Modelos de 43", 43p o cuarenta y tres' },
+  { id: 't_46', title: '46 Pulgadas', description: 'Modelos de 46", 46p' },
+  { id: 't_47', title: '47 Pulgadas', description: 'Modelos de 47", 47p' },
+  { id: 't_48', title: '48 Pulgadas', description: 'Modelos de 48", 48p' },
+  { id: 't_49', title: '49 Pulgadas', description: 'Modelos de 49", 49p' },
+  { id: 't_sig_1', title: 'Siguiente Lista ➡️', description: 'Ver pulgadas más grandes' }
+];
+
+const LISTA_TAMANOS_2 = [
+  { id: 't_50', title: '50 Pulgadas', description: 'Modelos de 50", 50p o cincuenta' },
+  { id: 't_55', title: '55 Pulgadas', description: 'Modelos de 55", 55p o cincuenta y cinco' },
+  { id: 't_58', title: '58 Pulgadas', description: 'Modelos de 58", 58p' },
+  { id: 't_60', title: '60 Pulgadas', description: 'Modelos de 60", 60p o sesenta' },
+  { id: 't_65', title: '65 Pulgadas', description: 'Modelos de 65", 65p o sesenta y cinco' },
+  { id: 't_70', title: '70 Pulgadas', description: 'Modelos de 70", 70p o setenta' },
+  { id: 't_75', title: '75 Pulgadas', description: 'Modelos de 75", 75p o setenta y cinco' }
+];
 // 2. Recepción y Control del Webhook de WhatsApp (POST)
 app.post('/webhook', async (req: Request, res: Response) => {
   try {
     const body = req.body;
 
+    // Validación de estructura del Webhook enviado por Meta Cloud API
     if (!body || !body.object || !body.entry || !body.entry[0] || !body.entry[0].changes || !body.entry[0].changes[0] || !body.entry[0].changes[0].value || !body.entry[0].changes[0].value.messages) {
       return res.status(200).send('OK');
     }
 
     const messageData = body.entry[0].changes[0].value.messages[0];
     const customerPhone = messageData.from;
+    const session = MemoryManager.getOrCreateSession(customerPhone);
 
-    if (messageData.type !== 'text' || !messageData.text || !messageData.text.body) {
+    // Extraer datos según el tipo de interacción (Texto plano, Botón o Lista)
+    let userMessage = '';
+    let interactiveId = '';
+
+    if (messageData.type === 'text' && messageData.text) {
+      userMessage = messageData.text.body.trim();
+    } else if (messageData.type === 'interactive' && messageData.interactive) {
+      if (messageData.interactive.type === 'button_reply' && messageData.interactive.button_reply) {
+        interactiveId = messageData.interactive.button_reply.id;
+        userMessage = messageData.interactive.button_reply.title;
+      } else if (messageData.interactive.type === 'list_reply' && messageData.interactive.list_reply) {
+        interactiveId = messageData.interactive.list_reply.id;
+        userMessage = messageData.interactive.list_reply.title;
+      }
+    }
+
+    // Si no se capturó ningún mensaje válido, abortamos de forma segura
+    if (!userMessage && !interactiveId) {
       return res.status(200).send('OK');
     }
 
-    const userMessage = messageData.text.body.trim();
-    const session = MemoryManager.getOrCreateSession(customerPhone);
     const lowerMessage = userMessage.toLowerCase();
 
     // BYPASS SEGURO DE DESARROLLO (Borrado absoluto de caché de pruebas)
     if (lowerMessage === 'reiniciar' && customerPhone === DEV_CLIENT_PHONE) {
       MemoryManager.clearSession(customerPhone);
-      MemoryManager.getOrCreateSession(customerPhone);
-      const openMessage = '¡Hola! Te saluda ZENI de Zener Servicio Técnico. ¿En qué ciudad te encuentras?';
-      MemoryManager.addMessage(customerPhone, { role: 'assistant', content: openMessage });
-      await MetaClient.sendTextMessage(customerPhone, openMessage);
+      const newSession = MemoryManager.getOrCreateSession(customerPhone);
+      newSession.metadata.estado_actual = 'esperando_ciudad_1';
+      
+      await MetaClient.sendListMessage(customerPhone, '¡Hola! Te saluda ZENI de Zener Servicio Técnico. Para iniciar tu solicitud de asistencia a domicilio, por favor selecciona tu ciudad de residencia:', 'Zonas de Cobertura', [{ title: 'Ciudades Parte 1', rows: LISTA_CIUDADES_1 }]);
       return res.status(200).send('OK');
     }
 
-    // COMANDO INICIO: Permite resetear el caso si el cliente fue descalificado previamente por display
+    // COMANDO INICIO ESTÁNDAR: Habilitado para reabrir casos cerrados por display
     if (lowerMessage === 'inicio') {
       MemoryManager.clearSession(customerPhone);
-      MemoryManager.getOrCreateSession(customerPhone);
-      const openMessage = '¡Hola! Te saluda ZENI de Zener Servicio Técnico. ¿En qué ciudad te encuentras?';
-      MemoryManager.addMessage(customerPhone, { role: 'assistant', content: openMessage });
-      await MetaClient.sendTextMessage(customerPhone, openMessage);
+      const newSession = MemoryManager.getOrCreateSession(customerPhone);
+      newSession.metadata.estado_actual = 'esperando_ciudad_1';
+
+      await MetaClient.sendListMessage(customerPhone, '¡Hola! Te saluda ZENI de Zener Servicio Técnico. Para iniciar tu solicitud de asistencia a domicilio, por favor selecciona tu ciudad de residencia:', 'Zonas de Cobertura', [{ title: 'Ciudades Parte 1', rows: LISTA_CIUDADES_1 }]);
       return res.status(200).send('OK');
     }
 
-    // BLOQUEO PREVENTIVO ABSOLUTO: Si ya fue transferido o descalificado (por zona), el bot se apaga por completo
+    // BLOQUEO PREVENTIVO ABSOLUTO: Si el estado general es descalificado por zona o transferido, el bot se apaga
     if (session.metadata.status === 'transferido' || session.metadata.status === 'descalificado') {
       return res.status(200).send('OK');
     }
-    // Registrar mensaje en la memoria RAM e invocar al extractor cognitivo de la IA
-    MemoryManager.addMessage(customerPhone, { role: 'user', content: userMessage });
-    const datos = await AgentManager.processMessage(session.history, userMessage);
+    // =====================================================================
+    // MAQUINA DE ESTADOS SECUENCIAL RÍGIDA - FILTRO 1: CIUDADES
+    // =====================================================================
+    if (session.metadata.estado_actual === 'esperando_ciudad_1' || session.metadata.estado_actual === 'esperando_ciudad_2') {
+      
+      // Control del salto hacia la segunda lista de ciudades (Continuidad)
+      if (interactiveId === 'c_sig_1') {
+        session.metadata.estado_actual = 'esperando_ciudad_2';
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona tu ciudad en esta segunda lista de cobertura disponible:', 'Zonas de Cobertura', [{ title: 'Ciudades Parte 2', rows: LISTA_CIUDADES_2 }]);
+        return res.status(200).send('OK');
+      }
 
-    // =====================================================================
-    // FILTRO 1: LOGÍSTICA DE COBERTURA GEOGRÁFICA (TOLERANTE A MODISMOS)
-    // =====================================================================
-    if (!session.metadata.ciudad) {
-      if (datos.ciudad) {
-        // Se limpia de acentos y tildes la respuesta mapeada oficialmente por la IA
-        const ciudadLimpiaIA = datos.ciudad.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      // Control del botón de descalificación fulminante (Cierre definitivo de chat)
+      if (interactiveId === 'c_descalificar') {
+        session.metadata.status = 'descalificado';
+        const outZona = 'Lamentablemente, por el momento no contamos con cobertura en tu zona y tampoco recibimos televisores por encomienda desde el interior. ¡Gracias por tu comprensión!';
+        await MetaClient.sendTextMessage(customerPhone, outZona);
+        return res.status(200).send('OK');
+      }
+
+      // Validar si el ID corresponde a una ciudad válida seleccionada por el usuario
+      if (interactiveId.startsWith('c_')) {
+        session.metadata.ciudad = userMessage; // Guarda el nombre de la ciudad limpio
+        session.metadata.estado_actual = 'esperando_categoria_falla';
         
-        // Verificación en la lista rígida del servidor
-        const esValida = CIUDADES_COBERTURA.some(c => {
-          const ciudadListaLimpia = c.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          return ciudadLimpiaIA === ciudadListaLimpia || ciudadLimpiaIA.includes(ciudadListaLimpia);
-        });
-
-        if (esValida) {
-          session.metadata.ciudad = datos.ciudad;
-          const nextMsg = `¡Buenísimo! ${datos.ciudad} está dentro de nuestra zona de cobertura a domicilio. ¿Cuál es el síntoma o problema que presenta tu televisor?`;
-          MemoryManager.addMessage(customerPhone, { role: 'assistant', content: nextMsg });
-          await MetaClient.sendTextMessage(customerPhone, nextMsg);
-          return res.status(200).send('OK');
-        } else {
-          // Descalificación por Zona: Bloqueo absoluto y fin del chat
-          session.metadata.status = 'descalificado';
-          const outZona = `Lamentablemente, por el momento no contamos con cobertura en ${datos.ciudad} y tampoco recibimos televisores por encomienda desde el interior. ¡Gracias por tu comprensión!`;
-          MemoryManager.addMessage(customerPhone, { role: 'assistant', content: outZona });
-          await MetaClient.sendTextMessage(customerPhone, outZona);
-          return res.status(200).send('OK');
-        }
-      } else {
-        const pedirCiudad = '¿En qué ciudad te encuentras?';
-        await MetaClient.sendTextMessage(customerPhone, pedirCiudad);
+        const msgCat = `¡Buenísimo! ${userMessage} está dentro de nuestra zona de cobertura a domicilio. Selecciona la categoría general de la falla de tu televisor:`;
+        await MetaClient.sendButtonsMessage(customerPhone, msgCat, BOTONES_CATEGORIAS);
         return res.status(200).send('OK');
       }
+
+      // Cláusula de seguridad si el cliente responde texto plano libre en lugar de usar la lista
+      await MetaClient.sendListMessage(customerPhone, 'Por favor, debes seleccionar una opción válida desplegando la lista de zonas de cobertura para poder continuar:', 'Zonas de Cobertura', [{ title: 'Ciudades Parte 1', rows: LISTA_CIUDADES_1 }]);
+      return res.status(200).send('OK');
     }
 
     // =====================================================================
-    // INTERCEPCIÓN DE RESPUESTAS REACTIVAS (FAQs COGNITIVAS)
+    // FILTRO 2: EVALUACIÓN Y ENRUTAMIENTO GENERAL DE LA FALLA
     // =====================================================================
-    if (datos.pregunto_faq) {
-      if (lowerMessage.includes('garantia') || lowerMessage.includes('garantía')) {
-        const msgGarantia = 'Todas las reparaciones cuentan con 6 meses de garantía escrita, la cual cubre tanto la mano de obra como el repuesto cambiado.';
-        await MetaClient.sendTextMessage(customerPhone, msgGarantia);
-        return res.status(200).send('OK');
-      }
-      if (lowerMessage.includes('todos los led') || lowerMessage.includes('cambian todos')) {
-        const msgLeds = 'Sí, nuestra política de calidad es realizar el cambio completo de todos los LED de forma individual para garantizar un trabajo de fábrica.';
-        await MetaClient.sendTextMessage(customerPhone, msgLeds);
-        return res.status(200).send('OK');
-      }
-      if (lowerMessage.includes('precio') || lowerMessage.includes('cuanto') || lowerMessage.includes('costo') || lowerMessage.includes('presupuesto')) {
-        const msgPresupuesto = 'Con gusto, el servicio técnico se encargará de darte el presupuesto final y coordinar el día y horario de la visita en un momento.';
-        await MetaClient.sendTextMessage(customerPhone, msgPresupuesto);
-        return res.status(200).send('OK');
-      }
-    }
-    // =====================================================================
-    // FILTRO 2: MATRIZ DE SÍNTOMAS JERÁRQUICA (POR CASILLERO)
-    // =====================================================================
-    if (!session.metadata.sintoma) {
-      // 1. PRIORIDAD MÁXIMA PANTALLAS ROTAS / DISTORSIÓN VISUAL (DISPLAY)
-      if (datos.menciona_golpe_o_caida || datos.sintoma_display) {
+    if (session.metadata.estado_actual === 'esperando_categoria_falla') {
+      
+      if (interactiveId === 'cat_display') {
         session.metadata.sintoma = 'display';
-        const msgDisplay = 'El síntoma que indicas corresponde a una falla de display. Lamentablemente, en Zener no reparamos ni cambiamos pantallas. Te comentamos que el costo de un panel original de repuesto supera el 80% o 90% del valor de un televisor nuevo de paquete, haciendo inviable la inversión. Si deseas consultar por un equipo diferente, puedes escribir la palabra "Inicio" para comenzar de nuevo.';
-        MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgDisplay });
-        await MetaClient.sendTextMessage(customerPhone, msgDisplay);
+        session.metadata.estado_actual = 'esperando_subfalla_display_1';
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma o daño exacto relacionado con tu pantalla:', 'Síntomas Display', [{ title: 'Display Parte 1', rows: LISTA_DISPLAY_1 }]);
         return res.status(200).send('OK');
       }
 
-      // 2. PRIORIDAD MEDIA AUSENCIA TOTAL DE LUZ / SÍNTOMA LED CONFIRMADO
-      if (datos.sintoma_led) {
+      if (interactiveId === 'cat_led') {
         session.metadata.sintoma = 'led';
-        const msgLed = 'El síntoma que indicas corresponde a una falla en los LED. ¿Cuál es la marca y el tamaño en pulgadas de tu televisor? (Ejemplo: Samsung de 55)';
-        MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgLed });
-        await MetaClient.sendTextMessage(customerPhone, msgLed);
+        session.metadata.estado_actual = 'esperando_subfalla_led_1';
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto relacionado con la iluminación interna de tu televisor:', 'Síntomas LED', [{ title: 'LED Parte 1', rows: LISTA_LED_1 }]);
         return res.status(200).send('OK');
       }
 
-      // 3. PRIORIDAD BAJA FALLA ELECTRÓNICA DE ENERGÍA / AUDIO CONFIRMADA (PLACA)
-      if (datos.sintoma_placa) {
+      if (interactiveId === 'cat_placa') {
         session.metadata.sintoma = 'placa';
-        const msgPlaca = 'El síntoma que indicas corresponde a una falla de placa. ¿Cuál es la marca y el tamaño en pulgadas de tu televisor? (Ejemplo: LG de 43)';
-        MemoryManager.addMessage(customerPhone, { role: 'assistant', content: msgPlaca });
-        await MetaClient.sendTextMessage(customerPhone, msgPlaca);
+        session.metadata.estado_actual = 'esperando_subfalla_placa_1';
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto relacionado con los componentes de la placa:', 'Síntomas Placa', [{ title: 'Placa Parte 1', rows: LISTA_PLACA_1 }]);
         return res.status(200).send('OK');
       }
 
-      // PREGUNTA FIJA DE ESCAPE (Si la información es ambigua como "no se ve" y no hay coincidencia clara)
-      const msgDuda = '¿Me podrías precisar un detalle? ¿El televisor emite sonido de fondo, se queda completamente muerto sin dar luces ni piloto, o presenta alguna línea o raya en la pantalla?';
-      await MetaClient.sendTextMessage(customerPhone, msgDuda);
+      // Forzar el uso de los botones interactivos si escribe otra cosa
+      await MetaClient.sendButtonsMessage(customerPhone, 'Por favor, selecciona una de las 3 opciones generales presionando un botón de la lista:', BOTONES_CATEGORIAS);
       return res.status(200).send('OK');
     }
     // =====================================================================
-    // FILTROS 3 Y 4: LOGÍSTICA DE MARCA, TAMAÑO Y TRANSFERENCIA LIMPIA
+    // SUBMENÚS INTERACTIVOS - ANÁLISIS DE FALLAS ESPECÍFICAS
     // =====================================================================
-    if (session.metadata.sintoma === 'led' || session.metadata.sintoma === 'placa') {
-      // Guardar en metadatos si la IA extrajo la marca o el tamaño en este turno
-      if (datos.marca) session.metadata.marca = datos.marca;
-      if (datos.tamano) session.metadata.tamano = datos.tamano;
 
-      // Si ya contamos con ambos datos guardados en la sesión, procedemos a transferir
-      if (session.metadata.marca && session.metadata.tamano) {
+    // --- GRUPO 1: SUBFALLAS DE DISPLAY (DESCALIFICACIÓN CASO CERRADO / CHAT ABIERTO) ---
+    if (session.metadata.estado_actual === 'esperando_subfalla_display_1' || session.metadata.estado_actual === 'esperando_subfalla_display_2' || session.metadata.estado_actual === 'esperando_subfalla_display_3') {
+      
+      if (interactiveId === 'd_sig_1') {
+        session.metadata.estado_actual = 'esperando_subfalla_display_2';
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto de tu pantalla en esta segunda lista:', 'Síntomas Display', [{ title: 'Display Parte 2', rows: LISTA_DISPLAY_2 }]);
+        return res.status(200).send('OK');
+      }
+      if (interactiveId === 'd_sig_2') {
+        session.metadata.estado_actual = 'esperando_subfalla_display_3';
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto de tu pantalla en esta última lista:', 'Síntomas Display', [{ title: 'Display Parte 3', rows: LISTA_DISPLAY_3 }]);
+        return res.status(200).send('OK');
+      }
+
+      if (interactiveId.startsWith('d_')) {
+        // Cierre de caso por Display: No se bloquea el número para que pueda escribir "Inicio"
+        const msgDisplay = 'El síntoma que indicas corresponde a una falla de display. Lamentablemente, en Zener no reparamos ni cambiamos pantallas. Te comentamos que el costo de un panel original de repuesto supera el 80% o 90% del valor de un televisor nuevo de paquete, haciendo inviable la inversión. Si deseas consultar por un equipo diferente, puedes escribir la palabra "Inicio" para comenzar de nuevo.';
+        await MetaClient.sendTextMessage(customerPhone, msgDisplay);
+        return res.status(200).send('OK');
+      }
+    }
+
+    // --- GRUPO 2: SUBFALLAS DE LED (CALIFICACIÓN) ---
+    if (session.metadata.estado_actual === 'esperando_subfalla_led_1' || session.metadata.estado_actual === 'esperando_subfalla_led_2' || session.metadata.estado_actual === 'esperando_subfalla_led_3') {
+      
+      if (interactiveId === 'l_sig_1') {
+        session.metadata.estado_actual = 'esperando_subfalla_led_2';
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto de iluminación en esta segunda lista:', 'Síntomas LED', [{ title: 'LED Parte 2', rows: LISTA_LED_2 }]);
+        return res.status(200).send('OK');
+      }
+      if (interactiveId === 'l_sig_2') {
+        session.metadata.estado_actual = 'esperando_subfalla_led_3';
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto de iluminación en esta última lista:', 'Síntomas LED', [{ title: 'LED Parte 3', rows: LISTA_LED_3 }]);
+        return res.status(200).send('OK');
+      }
+
+      if (interactiveId.startsWith('l_')) {
+        session.metadata.falla_specifica = userMessage;
+        session.metadata.estado_actual = 'esperando_marca';
+        await MetaClient.sendListMessage(customerPhone, 'El síntoma que indicas corresponde a una falla en los LED. ¿Cuál es la marca de tu televisor?', 'Marcas de TV', [{ title: 'Marcas Principales', rows: LISTA_MARCAS }]);
+        return res.status(200).send('OK');
+      }
+    }
+
+    // --- GRUPO 3: SUBFALLAS DE PLACA (CALIFICACIÓN) ---
+    if (session.metadata.estado_actual === 'esperando_subfalla_placa_1' || session.metadata.estado_actual === 'esperando_subfalla_placa_2') {
+      
+      if (interactiveId === 'p_sig_1') {
+        session.metadata.estado_actual = 'esperando_subfalla_placa_2';
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma de placa en esta segunda lista de fallas:', 'Síntomas Placa', [{ title: 'Placa Parte 2', rows: LISTA_PLACA_2 }]);
+        return res.status(200).send('OK');
+      }
+
+      if (interactiveId.startsWith('p_')) {
+        session.metadata.falla_specifica = userMessage;
+        session.metadata.estado_actual = 'esperando_marca';
+        await MetaClient.sendListMessage(customerPhone, 'El síntoma que indicas corresponde a una falla de placa. ¿Cuál es la marca de tu televisor?', 'Marcas de TV', [{ title: 'Marcas Principales', rows: LISTA_MARCAS }]);
+        return res.status(200).send('OK');
+      }
+    }
+    // =====================================================================
+    // FILTROS 3 Y 4: LOGÍSTICA DE RECOPILACIÓN DE MARCA Y TAMAÑO
+    // =====================================================================
+
+    // --- RECOPILACIÓN RÍGIDA DE MARCA ---
+    if (session.metadata.estado_actual === 'esperando_marca') {
+      if (interactiveId.startsWith('m_')) {
+        session.metadata.marca = userMessage;
+        session.metadata.estado_actual = 'esperando_tamano_1';
+        
+        await MetaClient.sendListMessage(customerPhone, `Registrado: ${userMessage}. Ahora selecciona las pulgadas numéricas exactas o el tamaño de tu televisor:`, 'Tamaños de TV', [{ title: 'Tamaños Parte 1', rows: LISTA_TAMANOS_1 }]);
+        return res.status(200).send('OK');
+      }
+      
+      await MetaClient.sendListMessage(customerPhone, 'Por favor, selecciona una marca de la lista desplegable para poder continuar:', 'Marcas de TV', [{ title: 'Marcas Principales', rows: LISTA_MARCAS }]);
+      return res.status(200).send('OK');
+    }
+
+    // --- RECOPILACIÓN RÍGIDA DE TAMAÑO Y DESPACHO DE ENERIZACIÓN FINAL ---
+    if (session.metadata.estado_actual === 'esperando_tamano_1' || session.metadata.estado_actual === 'esperando_tamano_2') {
+      
+      if (interactiveId === 't_sig_1') {
+        session.metadata.estado_actual = 'esperando_tamano_2';
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el tamaño exacto en esta lista de pulgadas grandes:', 'Tamaños de TV', [{ title: 'Tamaños Parte 2', rows: LISTA_TAMANOS_2 }]);
+        return res.status(200).send('OK');
+      }
+
+      if (interactiveId.startsWith('t_')) {
+        session.metadata.tamano = userMessage;
+        session.metadata.status = 'transferido';
+
         const tipoFalla = session.metadata.sintoma === 'led' ? 'en los LED' : 'de placa';
         const textSuccess = `Excelente, el síntoma que indicas corresponde a una falla ${tipoFalla}, un técnico asignado a tu caso te escribirá directamente desde su número para darte un presupuesto.`;
         
-        session.metadata.status = 'transferido';
         MemoryManager.addMessage(customerPhone, { role: 'assistant', content: textSuccess });
         await MetaClient.sendTextMessage(customerPhone, textSuccess);
 
         // PROCEDIMIENTO ESTRICTO: Descomposición de la URL base en caracteres individuales concatenados
         const linkParts = ['w', 'a', '.', 'm', 'e', '/'];
         const waLink = linkParts.join('') + customerPhone;
-        const resumenSintoma = session.metadata.sintoma === 'led' ? 'Sistema de iluminación LED quemado' : 'Falla electrónica en Placa (Fuente/Main)';
+        
+        const resumenSintoma = session.metadata.sintoma === 'led' 
+          ? `Sistema de iluminación LED quemado (${session.metadata.falla_specifica})` 
+          : `Falla electrónica en Placa (${session.metadata.falla_specifica})`;
 
-        // Reporte limpio con las variables procesadas de la sesión
+        // Reporte totalmente limpio y estructurado sin variables crudas ni textos libres
         const dataPayload = [
           `*NUEVO CLIENTE CALIFICADO*`,
           `📱 *Contacto*: ${waLink}`,
           `📍 *Ciudad*: ${session.metadata.ciudad}`,
-          `📺 *Equipo*: ${session.metadata.marca} de ${session.metadata.tamano} pulgadas`,
+          `📺 *Equipo*: ${session.metadata.marca} de ${session.metadata.tamano}`,
           `🛠️ *Síntoma*: ${resumenSintoma}`
         ].join('\n');
 
         // Despacho directo por red mediante mensaje de texto plano nativo sin plantillas
         await MetaClient.sendTemplateTransfer(TECHNICAL_PHONE, dataPayload);
         return res.status(200).send('OK');
-      } else {
-        // Si falta alguno de los dos datos, se le vuelven a solicitar al cliente
-        const pedirDatos = '¿Me confirmarías la marca y el tamaño en pulgadas de tu televisor?';
-        await MetaClient.sendTextMessage(customerPhone, pedirDatos);
-        return res.status(200).send('OK');
       }
+
+      await MetaClient.sendListMessage(customerPhone, 'Por favor, selecciona un tamaño de la lista de pulgadas para finalizar tu solicitud:', 'Tamaños de TV', [{ title: 'Tamaños Parte 1', rows: LISTA_TAMANOS_1 }]);
+      return res.status(200).send('OK');
     }
 
     return res.status(200).send('OK');
