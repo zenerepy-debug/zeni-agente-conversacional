@@ -9,5 +9,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["*.ts"]
+  "include": ["app.ts", "memory.ts", "metaClient.ts"],
+  "exclude": ["node_modules", "dist"]
 }
