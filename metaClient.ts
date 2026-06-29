@@ -33,28 +33,13 @@ export const MetaClient = {
     const p1 = [phoneId, 'messages'];
     const endpoint = `${META_API_URL}/${p1.join('/')}`;
 
-    // Saneamiento de los saltos de línea para el motor de variables rígidas de la API de Meta
-    const cleanData = technicalData.replace(/\n/g, '  |  ');
-
+    // Cambiamos de forma definitiva el payload a tipo 'text' puro para evadir el uso de plantillas
     const payload = {
       messaging_product: 'whatsapp',
+      recipient_type: 'individual',
       to: to,
-      type: 'template',
-      template: {
-        name: 'transferencia_tecnico',
-        language: { code: 'es' },
-        components: [
-          {
-            type: 'body',
-            parameters: [
-              { 
-                type: 'text', 
-                text: cleanData 
-              }
-            ]
-          }
-        ]
-      }
+      type: 'text',
+      text: { body: technicalData }
     };
 
     await axios.post(endpoint, payload, {
