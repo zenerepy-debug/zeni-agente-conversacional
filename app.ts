@@ -39,6 +39,17 @@ const BOTONES_CATEGORIAS = [
   { id: 'cat_placa', title: 'Falla de Placa' }
 ];
 
+// 1. Verificación obligatoria del Webhook de Meta (GET)
+app.get('/webhook', (req: Request, res: Response) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
+});
 const LISTA_DISPLAY_1 = [
   { id: 'd_vidrio', title: 'Vidrio Estrellado', description: 'Grietas en forma de telaraña' },
   { id: 'd_fisura', title: 'Fisura Interna', description: 'Vidrio sano pero roto al encender' },
@@ -72,17 +83,6 @@ const LISTA_DISPLAY_3 = [
   { id: 'd_lineas_c', title: 'Líneas que Cambian', description: 'Se mueven al tocar el marco' }
 ];
 
-// 1. Verificación del Webhook de Meta (GET)
-app.get('/webhook', (req: Request, res: Response) => {
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
-
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    return res.status(200).send(challenge);
-  }
-  return res.sendStatus(403);
-});
 const LISTA_LED_1 = [
   { id: 'l_oscura', title: 'Pantalla Oscura Total', description: 'Prende pero se queda 100% apagada' },
   { id: 'l_sin_luz', title: 'Pantalla Sin Nada Luz', description: 'Arranca pero sin luz interna' },
@@ -118,7 +118,6 @@ const LISTA_LED_3 = [
   { id: 'l_rato', title: 'Luz se Apaga al Rato', description: 'Prende bien y se corta a los minutos' },
   { id: 'l_erratico', title: 'Brillo Sube y Baja', description: 'Intensidad de luz parpadea' }
 ];
-
 const LISTA_PLACA_1 = [
   { id: 'p_muerto', title: 'Totalmente Muerto', description: 'No enciende nada, sin standby' },
   { id: 'p_stby_ap', title: 'Luz Standby Apagada', description: 'Piloto del frente apagado sin brillo' },
@@ -185,7 +184,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
   try {
     const body = req.body;
 
-    // Validación de estructura del Webhook enviado por Meta Cloud API
     if (!body || !body.object || !body.entry || !body.entry[0] || !body.entry[0].changes || !body.entry[0].changes[0] || !body.entry[0].changes[0].value || !body.entry[0].changes[0].value.messages) {
       return res.status(200).send('OK');
     }
@@ -194,7 +192,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
     const customerPhone = messageData.from;
     const session = MemoryManager.getOrCreateSession(customerPhone);
 
-    // Extraer datos según el tipo de interacción (Texto plano, Botón o Lista)
     let userMessage = '';
     let interactiveId = '';
 
@@ -210,7 +207,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
       }
     }
 
-    // Si no se capturó ningún mensaje válido, abortamos de forma segura
     if (!userMessage && !interactiveId) {
       return res.status(200).send('OK');
     }
@@ -237,7 +233,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
-    // BLOQUEO PREVENTIVO ABSOLUTO: Si el estado general es descalificado por zona o transferido, el bot se apaga
     if (session.metadata.status === 'transferido' || session.metadata.status === 'descalificado') {
       return res.status(200).send('OK');
     }
@@ -246,14 +241,12 @@ app.post('/webhook', async (req: Request, res: Response) => {
     // =====================================================================
     if (session.metadata.estado_actual === 'esperando_ciudad_1' || session.metadata.estado_actual === 'esperando_ciudad_2') {
       
-      // Control del salto hacia la segunda lista de ciudades (Continuidad)
       if (interactiveId === 'c_sig_1') {
         session.metadata.estado_actual = 'esperando_ciudad_2';
         await MetaClient.sendListMessage(customerPhone, 'Selecciona tu ciudad en esta segunda lista de cobertura disponible:', 'Zonas de Cobertura', [{ title: 'Ciudades Parte 2', rows: LISTA_CIUDADES_2 }]);
         return res.status(200).send('OK');
       }
 
-      // Control del botón de descalificación fulminante (Cierre definitivo de chat)
       if (interactiveId === 'c_descalificar') {
         session.metadata.status = 'descalificado';
         const outZona = 'Lamentablemente, por el momento no contamos con cobertura en tu zona y tampoco recibimos televisores por encomienda desde el interior. ¡Gracias por tu comprensión!';
@@ -261,9 +254,8 @@ app.post('/webhook', async (req: Request, res: Response) => {
         return res.status(200).send('OK');
       }
 
-      // Validar si el ID corresponde a una ciudad válida seleccionada por el usuario
       if (interactiveId.startsWith('c_')) {
-        session.metadata.ciudad = userMessage; // Guarda el nombre de la ciudad limpio
+        session.metadata.ciudad = userMessage;
         session.metadata.estado_actual = 'esperando_categoria_falla';
         
         const msgCat = `¡Buenísimo! ${userMessage} está dentro de nuestra zona de cobertura a domicilio. Selecciona la categoría general de la falla de tu televisor:`;
@@ -271,7 +263,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
         return res.status(200).send('OK');
       }
 
-      // Cláusula de seguridad si el cliente responde texto plano libre en lugar de usar la lista
       await MetaClient.sendListMessage(customerPhone, 'Por favor, debes seleccionar una opción válida desplegando la lista de zonas de cobertura para poder continuar:', 'Zonas de Cobertura', [{ title: 'Ciudades Parte 1', rows: LISTA_CIUDADES_1 }]);
       return res.status(200).send('OK');
     }
@@ -302,7 +293,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
         return res.status(200).send('OK');
       }
 
-      // Forzar el uso de los botones interactivos si escribe otra cosa
       await MetaClient.sendButtonsMessage(customerPhone, 'Por favor, selecciona una de las 3 opciones generales presionando un botón de la lista:', BOTONES_CATEGORIAS);
       return res.status(200).send('OK');
     }
@@ -325,7 +315,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
       }
 
       if (interactiveId.startsWith('d_')) {
-        // Cierre de caso por Display: No se bloquea el número para que pueda escribir "Inicio"
         const msgDisplay = 'El síntoma que indicas corresponde a una falla de display. Lamentablemente, en Zener no reparamos ni cambiamos pantallas. Te comentamos que el costo de un panel original de repuesto supera el 80% o 90% del valor de un televisor nuevo de paquete, haciendo inviable la inversión. Si deseas consultar por un equipo diferente, puedes escribir la palabra "Inicio" para comenzar de nuevo.';
         await MetaClient.sendTextMessage(customerPhone, msgDisplay);
         return res.status(200).send('OK');
@@ -347,7 +336,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
       }
 
       if (interactiveId.startsWith('l_')) {
-        session.metadata.falla_specifica = userMessage;
+        session.metadata.falla_especifica = userMessage;
         session.metadata.estado_actual = 'esperando_marca';
         await MetaClient.sendListMessage(customerPhone, 'El síntoma que indicas corresponde a una falla en los LED. ¿Cuál es la marca de tu televisor?', 'Marcas de TV', [{ title: 'Marcas Principales', rows: LISTA_MARCAS }]);
         return res.status(200).send('OK');
@@ -364,12 +353,13 @@ app.post('/webhook', async (req: Request, res: Response) => {
       }
 
       if (interactiveId.startsWith('p_')) {
-        session.metadata.falla_specifica = userMessage;
+        session.metadata.falla_especifica = userMessage;
         session.metadata.estado_actual = 'esperando_marca';
         await MetaClient.sendListMessage(customerPhone, 'El síntoma que indicas corresponde a una falla de placa. ¿Cuál es la marca de tu televisor?', 'Marcas de TV', [{ title: 'Marcas Principales', rows: LISTA_MARCAS }]);
         return res.status(200).send('OK');
       }
     }
+
     // =====================================================================
     // FILTROS 3 Y 4: LOGÍSTICA DE RECOPILACIÓN DE MARCA Y TAMAÑO
     // =====================================================================
@@ -388,7 +378,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
-    // --- RECOPILACIÓN RÍGIDA DE TAMAÑO Y DESPACHO DE ENERIZACIÓN FINAL ---
+    // --- RECOPILACIÓN RÍGIDA DE TAMAÑO Y DESPACHO FINAL ---
     if (session.metadata.estado_actual === 'esperando_tamano_1' || session.metadata.estado_actual === 'esperando_tamano_2') {
       
       if (interactiveId === 't_sig_1') {
@@ -404,7 +394,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
         const tipoFalla = session.metadata.sintoma === 'led' ? 'en los LED' : 'de placa';
         const textSuccess = `Excelente, el síntoma que indicas corresponde a una falla ${tipoFalla}, un técnico asignado a tu caso te escribirá directamente desde su número para darte un presupuesto.`;
         
-        MemoryManager.addMessage(customerPhone, { role: 'assistant', content: textSuccess });
         await MetaClient.sendTextMessage(customerPhone, textSuccess);
 
         // PROCEDIMIENTO ESTRICTO: Descomposición de la URL base en caracteres individuales concatenados
@@ -412,10 +401,9 @@ app.post('/webhook', async (req: Request, res: Response) => {
         const waLink = linkParts.join('') + customerPhone;
         
         const resumenSintoma = session.metadata.sintoma === 'led' 
-          ? `Sistema de iluminación LED quemado (${session.metadata.falla_specifica})` 
-          : `Falla electrónica en Placa (${session.metadata.falla_specifica})`;
+          ? `Sistema de iluminación LED quemado (${session.metadata.falla_especifica})` 
+          : `Falla electrónica en Placa (${session.metadata.falla_especifica})`;
 
-        // Reporte totalmente limpio y estructurado sin variables crudas ni textos libres
         const dataPayload = [
           `*NUEVO CLIENTE CALIFICADO*`,
           `📱 *Contacto*: ${waLink}`,
@@ -424,7 +412,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
           `🛠️ *Síntoma*: ${resumenSintoma}`
         ].join('\n');
 
-        // Despacho directo por red mediante mensaje de texto plano nativo sin plantillas
         await MetaClient.sendTemplateTransfer(TECHNICAL_PHONE, dataPayload);
         return res.status(200).send('OK');
       }
