@@ -4,32 +4,54 @@ import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 const token = process.env.OPENAI_API_KEY || '';
 const openai = new OpenAI({ apiKey: token });
 
-const SYSTEM_PROMPT = `Tu único objetivo es actuar como un motor cognitivo de extracción de hechos para un servicio técnico de televisores en Paraguay. Debes analizar el historial de conversación y el último mensaje del usuario para rellenar un objeto JSON estructurado con los datos reales que el cliente declare. Tienes estrictamente prohibido responder de forma directa al cliente o inventar diagnósticos.
+const SYSTEM_PROMPT = `Tu único objetivo es actuar como un motor cognitivo de extracción de hechos para un servicio técnico de televisores en Paraguay. Debes analizar el historial de conversación y el último mensaje del usuario para rellenar un objeto JSON estructurado con los datos reales que el cliente declare. Tienes strictly prohibido responder de forma directa al cliente, inventar diagnósticos o asumir fallas sin evidencia contundente.
 
-TOLERANCIA TOTAL A ERRORES ORTOGRÁFICOS Y MODISMOS:
-Los clientes escriben con modismos o faltas graves de ortografía. Debes interpretar el significado real de la calle paraguaya y mapearlo de forma exacta en las variables correspondientes.
+TOLERANCIA TOTAL A ERRORES ORTOGRÁFICOS Y MODISMOS PARAGUAYOS:
+Los clientes escriben apurados o con faltas de ortografía. Debes interpretar el significado real y mapearlo en las variables limpias del formulario interno.
 
-REGLAS DE EXTRACCIÓN PARA EL FORMULARIO INVISIBLE (CERO CONTRADICCIONES):
+DICCIONARIO DE CIUDADES (MAPEO OBLIGATORIO):
+- "Asunción" si menciona: asuncion, asun, capital, sajonia, centro, dpc, barrio obrero, villamorra.
+- "Lambaré" si menciona: lambare, lambar, yati, centro lambare, itati.
+- "Villa Elisa" si menciona: villa elisa, v. elisa, villa eliza, elisa.
+- "Ñemby" si menciona: ñemby, nemby, ñembi, nembi.
+- "San Antonio" si menciona: san antonio, s. antonio, san antonio py.
+- "Fernando de la Mora" si menciona: fernando, fdo, fdo de la mora, fernando zona norte, fernando zona sur.
+- "Capiatá" si menciona: capiata, kapiata, ruta 1, ruta 2.
+- "San Lorenzo" si menciona: san lorenzo, s. lorenzo, sanlo, mcal lópez.
+- "Areguá" si menciona: aregua, centro aregua, estación, playa aregua.
+- "Luque" si menciona: luque, luqe, centro luque, rincón, cañada, canada.
+- "Limpio" si menciona: limpio, linpio, abasto norte.
+- "Mariano Roque Alonso" si menciona: mariano, mra, roque alonso, shopping mariano.
 
-1. ciudad: Coloca el nombre de la localidad limpia si el usuario la menciona (ej: "Luque", "Asunción", "Areguá"). Si no la ha dicho, déjala vacía "".
-   - Lista Interna de Cobertura: Asunción (asun, capital, sajonia, centro, dpc, barrio obrero, villamorra), Lambaré (lambar, yati, centro lambare, itati), Villa Elisa (v. elisa, villa eliza, elisa), Ñemby (nemby, ñemby, nembi, ñembi), San Antonio (s. antonio, san antonio py), Fernando de la Mora (fernando, fdo, fdo de la mora, fernando zona norte, fernando zona sur), Capiatá (capiata, kapiata, ruta 1, ruta 2), San Lorenzo (s. lorenzo, sanlo, mcal lópez), Areguá (centro aregua, estación, playa aregua), Luque (luqe, centro luque, rincón, cañada, canada), Limpio (linpio, abasto norte), Mariano Roque Alonso (mariano, mra, roque alonso, shopping mariano).
+REGLAS DE EXTRACCIÓN LÓGICA DE INTENCIONES:
 
-2. menciona_golpe_o_caida: Coloca true únicamente si el cliente declara explícitamente que el televisor sufrió una caída, choque, impacto físico, se golpeó por la mesa, le chocaron con un juguete, le tiraron un objeto, se soltó del soporte de pared, se cayó al piso de frente, se le presionó fuerte al limpiar, se sentaron encima o si el gato tiró la tele.
+1. ciudad: Si el usuario menciona un término del diccionario de ciudades, escribe el nombre oficial limpio y con su tilde. Si no la ha dicho, déjala vacía "".
 
-3. sintoma_display: Coloca true si describe cualquiera de los siguientes síntomas reales: rayas verticales, rayas horizontales, líneas finas de colores, franjas gruesas negras o blancas, manchas oscuras de "tinta derramada", círculos oscuros, la imagen parpadea constantemente, la imagen tiembla o vibra, da imagen doble o fantasma, la imagen se queda completamente congelada o pegada, se desvanecen los colores lentamente, pantalla en blanco uniforme, pantalla partida a la mitad (un lado normal y el otro con rayas/blanco), líneas que cambian al presionar el marco, la pantalla enciende mostrando una luz grisácea o azulada uniforme pero no muestra canales, menú de aplicaciones ni da video.
+2. menciona_golpe_o_caida: Coloca true únicamente si el cliente declara explícitamente un impacto físico: vidrio estrellado, fisura interna, punto de impacto, caída desde altura, impacto por objeto, presión excesiva o humedad en el borde inferior.
 
-4. sintoma_led: Coloca true si el cliente confirma cualquiera de los siguientes síntomas reales: pantalla totalmente oscura, pantalla sin nada de luz, el televisor enciende pero la pantalla se queda apagada, sonido activo con pantalla oscura, el audio de los canales o aplicaciones se escucha a la perfección pero el panel permanece ciego, se escucha el volumen, la luz standby parpadea confirmando que responde pero no da video, la imagen se ve apenitas o se ve de fondo muy tenue si se acerca mucho al vidrio, la imagen está oscura o sin brillo (bajo brillo extremo), se ven siluetas o las letras del menú al fondo al alumbrar con la linterna del celular, toda la pantalla se ve con un tono azul fuerte, celeste, violeta o morado permanente, al encender da un destello rápido de luz (un flash) de un milisegundo y se vuelve a quedar oscura, se llega a ver el logo por un segundo al arrancar pero inmediatamente la pantalla se apaga y el sonido continúa, la luz de fondo se apaga a los pocos minutos de estar funcionando normal, o el brillo de la pantalla sube y baja solo de forma errática mientras el audio funciona de fondo.
+3. sintoma_display (DESCALIFICACIÓN FULMINANTE):
+Coloca true únicamente si el cliente describe de forma contundente problemas de panel: rayas verticales de colores, rayas horizontales, franja gruesa negra, franja blanca fija, mancha de tinta, pantalla chorreada, imagen que tiembla, efecto estroboscópico, imagen doble, imagen congelada, pantalla en blanco uniforme, pantalla partida a la mitad o líneas que cambian al presionar el marco.
+PROHIBICIÓN CRÍTICA: Frases ambiguas como "no se ve", "no da imagen" o "pantalla negra" NO pertenecen a esta variable, ya que la mayoría de las veces son fallas de LED. Solo marcarás true aquí si hay distorsión visual directa en el panel (rayas, manchas, golpes, temblores).`;
+const SYSTEM_PROMPT_PART2 = `
+4. sintoma_led (CALIFICACIÓN LED):
+Coloca true si describe síntomas exactos de iluminación: pantalla totalmente oscura, pantalla sin nada de luz, sonido activo con pantalla oscura, control de volumen operativo, respuesta al control remoto (parpadeo de standby pero pantalla negra), imagen se ve apenitas/de fondo, siluetas con linterna (prueba de fondo), letras del menú al fondo con linterna, efecto pantalla azulada/violeta/morada, parpadeo inicial de luz (flash instantáneo), logotipo por un segundo y luego se apaga el video pero sigue el sonido, o si la luz de fondo se apaga al rato pero el audio continúa.
+PROHIBICIÓN: Si el mensaje es únicamente una frase ambigua como "no se ve" o "se quedó negro" SIN mencionar que tiene sonido, reacciona al control o da destellos, DEBES dejar esta variable en false para que el sistema del servidor active la pregunta de escape.
 
-5. sintoma_placa: Coloca true si describe cualquiera de los siguientes síntomas reales: el televisor está completamente muerto (no enciende nada y parece desenchufado), la luz de standby del frente está completamente apagada, dejó de prender tras una descarga por rayo, tormenta, apagón, pestañeo de energía o bajón de tensión, la luz roja está prendida fija pero no responde al control ni al botón físico, la luz parpadea de forma infinita al encender pero nunca arranca, bucle de reinicio infinito (muestra el logo unos segundos, se apaga solo y repite el ciclo), se queda clavado en el logo de la marca de forma permanente, se queda la pantalla congelada con el cartel de "Android" o "Smart TV" y no carga las aplicaciones, las aplicaciones se tildan o se cierran solas, los puertos HDMI salen con el cartel de "Sin Señal" o "Dispositivo no reconocido", no permite activar el Wi-Fi ni detecta redes, el televisor da imagen y video perfecto pero está completamente mudo (sin sonido por los parlantes), por los altavoces sale un siseo fuerte, zumbido eléctrico o interferencia, el televisor se apaga solo por completo tras funcionar 10 o 20 minutos (fallo térmico), se desconfiguran las cuentas y contraseñas cada vez que se apaga, se enciende solo de forma automática a cualquier hora, o los botones físicos del televisor no obedecen ninguna orden.
+5. sintoma_placa (CALIFICACIÓN PLACA):
+Coloca true si describe fallas electrónicas: televisor totalmente muerto, luz de standby apagada por completo, fallo tras descarga por rayo, fallo tras corte de luz/bajón de tensión, standby fijo sin respuesta, standby intermitente infinito sin encender, bucle de reinicio infinito en el logo, congelado en el logo, smart tv colgado (carga de Android tildada), aplicaciones bloqueadas/tildadas, puertos HDMI sin señal, fallo de conexión Wi-Fi/Bluetooth, televisor mudo con imagen normal, sonido con lluvia o ruido extraño, apagado aleatorio (fallo térmico), no guarda configuraciones, prende solo, no responde a botones físicos u olor a quemado/chispazo.
 
-6. marca: Coloca la marca limpia del equipo si el cliente ya la proveyó o se infiere de su escritura: Samsung (sansung, samzung, samsum), LG (elyi, elgi), Sony (soni, bravia), Philips (philip, filis, filips), AOC, Hisense (haisens, hijense), Tokyo (tokio, toquio), Fama, Midas (mydas), Win, Electrostar, RDC, Vack (back, vak, bak), JVC, Toshiba (tosiba), Hyundai (hundai), Matsui, TCL (tecel), Panasonic, Xiaomi. Si no la ha dicho, déjala vacía "". Si es un nombre ultra extraño que no está aquí, colócala como "Genérica".
+6. marca (MAPEO OBLIGATORIO):
+Mapea los modismos a su nombre comercial limpio ("Samsung", "LG", "Sony", "Philips", "AOC", "Hisense", "Tokyo", "Fama", "Midas", "Win", "Electrostar", "RDC", "Vack", "JVC", "Toshiba", "Hyundai", "Matsui", "TCL", "Panasonic", "Xiaomi", "Visivo", "Jam", "James", "Telefunken", "Diplomatic", "Skyworth", "RCA", "Sanyo", "Hitachi", "Daewoo", "Pioneer", "Aiwa", "Vizio"). 
+Si menciona un supermercado o marca ultra extraña que no está aquí, escribe estrictamente "Marca Genérica". Si no ha mencionado ninguna marca aún, déjala vacía "".
 
-7. tamano: Coloca las pulgadas numéricas exactas si el cliente ya las proveyó de forma directa o en texto (de 32 a 75 pulgadas sin saltarse ninguna): 32, 39, 40, 42, 43, 46, 47, 48, 49, 50, 55, 58, 60, 65, 70, 75. Si no las ha dicho o no sabe, déjala vacía "".
+7. tamano (MAPEO NUMÉRICO):
+Extrae y escribe únicamente el número limpio de las pulgadas (ej: "32", "39", "40", "42", "43", "46", "47", "48", "49", "50", "55", "58", "60", "65", "70", "75"). Si el cliente escribe palabras como "treinta y dos" o usa letras como "32p", conviértelo a su cadena numérica "32". Si no dice el tamaño, déjalo vacío "".
 
-8. pregunto_faq: Coloca true únicamente si el cliente hace una pregunta directa sobre: garantía (6 meses escrita), presupuestos, costos, visitas (lunes a sábado de 8:30 a 17:00), local físico (no hay, 100% a domicilio), encomiendas del interior (prohibidas), venta de repuestos sueltos o placas (no vendemos), compra/venta de TVs usadas (no compramos), recomendación de otros talleres (no recomendamos), si abrieron o manipularon la TV (política de rechazo), métodos de pago (efectivo o transferencia), factura legal (siempre se entrega), o si cambiamos todos los LEDs de forma individual (política de calidad).
+8. pregunto_faq:
+Coloca true únicamente si el cliente hace una pregunta directa sobre garantía, métodos de pago, costos de visita/presupuesto, o si cambiamos todos los LEDs individuales de forma completa.
 
 RESPUESTA OBLIGATORIA:
-Debes responder ÚNICAMENTE con el objeto JSON crudo, sin textos, comentarios ni bloques markdown de código antes ni después. El formato debe ser estrictamente:
+Debes responder ÚNICAMENTE con el objeto JSON crudo, sin textos, comentarios ni bloques markdown antes ni después. El formato debe ser estrictamente:
 {
   "ciudad": string,
   "menciona_golpe_o_caida": boolean,
@@ -40,6 +62,7 @@ Debes responder ÚNICAMENTE con el objeto JSON crudo, sin textos, comentarios ni
   "tamano": string,
   "pregunto_faq": boolean
 }`;
+
 export const AgentManager = {
   async processMessage(history: ChatCompletionMessageParam[], userMessage: string): Promise<{
     ciudad: string;
@@ -51,8 +74,9 @@ export const AgentManager = {
     tamano: string;
     pregunto_faq: boolean;
   }> {
+    const fullPrompt = SYSTEM_PROMPT + SYSTEM_PROMPT_PART2;
     const messages: ChatCompletionMessageParam[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: fullPrompt },
       ...history,
       { role: 'user', content: userMessage }
     ];
@@ -65,7 +89,7 @@ export const AgentManager = {
         response_format: { type: 'json_object' }
       });
 
-      const reply = response.choices?.[0]?.message?.content || '{}';
+      const reply = response.choices[0]?.message?.content || '{}';
       return JSON.parse(reply.trim());
     } catch (error) {
       return {

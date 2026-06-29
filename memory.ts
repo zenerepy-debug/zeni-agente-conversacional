@@ -4,7 +4,7 @@ export interface UserSession {
   history: ChatCompletionMessageParam[];
   metadata: {
     ciudad?: string;
-    sintoma?: string;
+    sintoma?: 'display' | 'led' | 'placa';
     marca?: string;
     tamano?: string;
     status: 'conversando' | 'calificado' | 'descalificado' | 'transferido';
@@ -31,7 +31,11 @@ export const MemoryManager = {
       memoryStorage.set(phone, {
         history: [],
         metadata: {
-          status: 'conversando'
+          status: 'conversando',
+          ciudad: '',
+          sintoma: undefined,
+          marca: '',
+          tamano: ''
         },
         lastInteraction: Date.now()
       });
@@ -51,7 +55,7 @@ export const MemoryManager = {
     const session = this.getOrCreateSession(phone);
     session.history.push(message);
     
-    // Control de contexto ampliado a 40 mensajes para retener ciudad y síntomas en chats largos sin pérdidas
+    // Control de contexto ampliado a 40 mensajes para retener ciudad y síntomas sin pérdidas
     if (session.history.length > 40) {
       session.history.shift();
     }
