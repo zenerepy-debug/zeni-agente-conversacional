@@ -10,7 +10,7 @@ const TECHNICAL_PHONE = '595981121588';
 const DEV_CLIENT_PHONE = '595982545922';
 
 // =====================================================================
-// DICCIONARIOS DE DATOS RÍGIDOS OPTIMIZADOS PARA LÍMITES DE META API
+// DICCIONARIOS DE DATOS RÍGIDOS SIN SOBREPASAR LOS LÍMITES DE META API
 // =====================================================================
 
 const LISTA_CIUDADES_1 = [
@@ -50,98 +50,42 @@ app.get('/webhook', (req: Request, res: Response) => {
   }
   return res.sendStatus(403);
 });
-const LISTA_DISPLAY_1 = [
-  { id: 'd_vidrio', title: 'Vidrio Estrellado', description: 'Grietas en forma de telaraña' },
-  { id: 'd_fisura', title: 'Fisura Interna', description: 'Vidrio sano pero roto al encender' },
-  { id: 'd_punto', title: 'Punto de Impacto', description: 'Lineas que salen de un golpe' },
-  { id: 'd_caida', title: 'Caída desde Altura', description: 'Se soltó de soporte o del mueble' },
-  { id: 'd_objeto', title: 'Impacto por Objeto', description: 'Golpe de juguete, control o pelota' },
-  { id: 'd_presion', title: 'Presión Excesiva', description: 'Apretado fuerte al limpiar' },
-  { id: 'd_rayas_v', title: 'Rayas de Colores', description: 'Líneas finas verticales' },
-  { id: 'd_rayas_h', title: 'Rayas Horizontales', description: 'Líneas de costado a costado' },
-  { id: 'd_sig_1', title: 'Siguiente Lista ➡️', description: 'Ver más síntomas de display' }
+const LISTA_DISPLAY = [
+  { id: 'd_vidrio', title: 'Vidrio roto por golpe', description: 'Grietas por fuera, rajaduras internas o marcas de impactos' },
+  { id: 'd_ilumina', title: 'Se ilumina sin imagen', description: 'La pantalla prende o da una luz clara pero no muestra letras' },
+  { id: 'd_rayas_v', title: 'Rayas verticales', description: 'Líneas finas continuas de color verde, rojo o azul' },
+  { id: 'd_rayas_h', title: 'Rayas horizontales', description: 'Líneas negras o de colores que cruzan de costado a costado' },
+  { id: 'd_franja', title: 'Franja gruesa que tapa', description: 'Una barra oscura o blanca ancha bloquea un pedazo grande' },
+  { id: 'd_mancha', title: 'Mancha de tinta', description: 'Manchas negras amorfas que parecen líquido derramado' },
+  { id: 'd_tiembla', title: 'Imagen tiembla o salta', description: 'La imagen vibra, parpadea rápido o salta constantemente' },
+  { id: 'd_doble', title: 'Imagen doble/congelada', description: 'Siluetas superpuestas o la imagen se queda pegada fija' },
+  { id: 'd_partida', title: 'Imagen partida mitad', description: 'Un lado se ve perfecto y la otra mitad blanca o negra' },
+  { id: 'd_cayo', title: 'La pantalla se cayó', description: 'El televisor se soltó del soporte o vino abajo del mueble' }
 ];
 
-const LISTA_DISPLAY_2 = [
-  { id: 'd_franja_n', title: 'Franja Gruesa Negra', description: 'Barra oscura vertical/horizontal' },
-  { id: 'd_franja_b', title: 'Franja Blanca Fija', description: 'Bloque blanco brillante' },
-  { id: 'd_tinta', title: 'Mancha de Tinta', description: 'Círculos oscuros de líquido' },
-  { id: 'd_chorreado', title: 'Pantalla Chorreada', description: 'Manchas que se expanden abajo' },
-  { id: 'd_humedad', title: 'Humedad en el Borde', description: 'Líquido directo en marco inferior' },
-  { id: 'd_tiembla', title: 'Imagen que Tiembla', description: 'Video vibra o salta constante' },
-  { id: 'd_estrobo', title: 'Efecto Estroboscópico', description: 'Parpadeo rápido todo el tiempo' },
-  { id: 'd_doble', title: 'Imagen Doble', description: 'Siluetas superpuestas' },
-  { id: 'd_sig_2', title: 'Siguiente Lista ➡️', description: 'Ver más síntomas de display' }
+const LISTA_LED = [
+  { id: 'l_oscura', title: 'Imagen muy oscura', description: 'Se escucha el sonido perfecto pero la imagen se quedó oscura' },
+  { id: 'l_apagada', title: 'Imagen apagada', description: 'El volumen funciona bien pero la imagen está apagada' },
+  { id: 'l_sin_luz', title: 'Imagen sin luz', description: 'Se nota que la tele prende por el audio pero no tiene luz' },
+  { id: 'l_nada_luz', title: 'Imagen sin nada de luz', description: 'Se escucha la novela o el partido pero está sin nada de luz' },
+  { id: 'l_bajo_b', title: 'Imagen con bajo brillo', description: 'La imagen se ve muy opaca y con un bajo brillo extremo' },
+  { id: 'l_azul', title: 'Imagen azulada', description: 'La tele prende normal pero la imagen se ve azulada o celeste' },
+  { id: 'l_puntos', title: 'Puntos brillantes fondo', description: 'La imagen da luz pero aparecen círculos brillantes fijos' },
+  { id: 'l_flash', title: 'Flash de luz al prender', description: 'Da un destello rápido de luz y se vuelve a quedar apagada' },
+  { id: 'l_rato', title: 'Sin luz al rato', description: 'La tele arranca bien pero a los minutos la imagen se apaga' },
+  { id: 'l_parpadea', title: 'Brillo parpadea', description: 'La intensidad del brillo cambia y parpadea todo el tiempo' }
 ];
-
-const LISTA_DISPLAY_3 = [
-  { id: 'd_congelada', title: 'Imagen Congelada', description: 'Video fijo con sonido corriendo' },
-  { id: 'd_blanco', title: 'Pantalla en Blanco', description: 'Prende uniforme sin dar letras' },
-  { id: 'd_gris', title: 'Pantalla Grisácea', description: 'Tono gris/azulado con luz y audio' },
-  { id: 'd_desvanece', title: 'Desvanecimiento', description: 'Arranca bien y se borra a negro' },
-  { id: 'd_partida', title: 'Pantalla Partida', description: 'Mitad bien y mitad con fallas' },
-  { id: 'd_lineas_c', title: 'Líneas que Cambian', description: 'Se mueven al tocar el marco' }
-];
-
-const LISTA_LED_1 = [
-  { id: 'l_oscura', title: 'Pantalla Oscura Total', description: 'Prende pero se queda 100% apagada' },
-  { id: 'l_sin_luz', title: 'Pantalla Sin Nada Luz', description: 'Arranca pero sin luz interna' },
-  { id: 'l_sonido', title: 'Sonido Activo', description: 'Audio de canales o apps perfecto' },
-  { id: 'l_volumen', title: 'Volumen Operativo', description: 'Se escucha subir o bajar el volumen' },
-  { id: 'l_control', title: 'Respuesta al Control', description: 'Piloto parpadea pero sigue negra' },
-  { id: 'l_canal', title: 'Se Escucha el Canal', description: 'Canal se oye bien pero TV negra' },
-  { id: 'l_standby', title: 'Luz Standby Activa', description: 'Lucecita roja cambia normal' },
-  { id: 'l_cambio', title: 'Cambio por Sonido', description: 'Se nota cambio de canal por audio' },
-  { id: 'l_sig_1', title: 'Siguiente Lista ➡️', description: 'Ver más síntomas de iluminación LED' }
-];
-
-const LISTA_LED_2 = [
-  { id: 'l_apenitas', title: 'Imagen Se Ve Apenitas', description: 'Video visible solo de muy cerca' },
-  { id: 'l_fondo', title: 'Imagen Se Ve de Fondo', description: 'Canales corriendo bajo la oscuridad' },
-  { id: 'l_total', title: 'Imagen Total Oscura', description: 'Funciona con audio pero no se distingue' },
-  { id: 'l_sin_b', title: 'Imagen Sin Brillo', description: 'Prende sin fuerza de luz interna' },
-  { id: 'l_bajo_b', title: 'Imagen Bajo Brillo', description: 'Bajo brillo extremo que no cambia' },
-  { id: 'l_linterna', title: 'Siluetas con Linterna', description: 'Sombras al alumbrar con celular' },
-  { id: 'l_menu', title: 'Letras de Menú Fondo', description: 'Letras tenues del menú con linterna' },
-  { id: 'l_cuarto', title: 'Imagen Cuarto Oscuro', description: 'Imagen fantasmal visible sin luces' },
-  { id: 'l_sig_2', title: 'Siguiente Lista ➡️', description: 'Ver más síntomas de iluminación LED' }
-];
-
-const LISTA_LED_3 = [
-  { id: 'l_azul', title: 'Efecto Pantalla Azul', description: 'Tono azul fuerte o celeste fijo' },
-  { id: 'l_violeta', title: 'Efecto Pantalla Violeta', description: 'Imagen opaca teñida por desgaste' },
-  { id: 'l_morada', title: 'Efecto Pantalla Morada', description: 'Se ve morado y cansa la vista' },
-  { id: 'l_flash', title: 'Parpadeo Inicial Flash', description: 'Destello rápido de un milisegundo' },
-  { id: 'l_logo_seg', title: 'Logo por un Segundo', description: 'Muestra logo y se apaga con audio' },
-  { id: 'l_retro', title: 'Sin Luz de Retro', description: 'Se quedó sin luz de retroiluminación' },
-  { id: 'l_apagado_p', title: 'Apagado tras Parpadeo', description: 'Luz amaga y se apaga definitivo' },
-  { id: 'l_rato', title: 'Luz se Apaga al Rato', description: 'Prende bien y se corta a los minutos' },
-  { id: 'l_erratico', title: 'Brillo Sube y Baja', description: 'Intensidad de luz parpadea' }
-];
-const LISTA_PLACA_1 = [
-  { id: 'p_muerto', title: 'Totalmente Muerto', description: 'No enciende nada, sin standby' },
-  { id: 'p_stby_ap', title: 'Luz Standby Apagada', description: 'Piloto del frente apagado sin brillo' },
-  { id: 'p_rayo', title: 'Fallo por Rayo', description: 'Dejó de prender tras tormenta' },
-  { id: 'p_corte', title: 'Fallo por Corte Luz', description: 'No prendió luego de un apagón' },
-  { id: 'p_stby_f', title: 'Standby Fijo', description: 'Luz roja fija pero no reacciona' },
-  { id: 'p_stby_i', title: 'Standby Intermitente', description: 'Luz frontal parpadea infinito' },
-  { id: 'p_bucle', title: 'Bucle Reinicio Logo', description: 'Muestra logo y se reinicia solo' },
-  { id: 'p_congelado', title: 'Congelado en el Logo', description: 'Clavado fijo en la marca' },
-  { id: 'p_smart_c', title: 'Smart TV Colgado', description: 'Congelado cargando el sistema' },
-  { id: 'p_sig_1', title: 'Siguiente Lista ➡️', description: 'Ver más síntomas de placa' }
-];
-
-const LISTA_PLACA_2 = [
-  { id: 'p_apps', title: 'Apps Bloqueadas', description: 'Se cierra YouTube o Netflix solo' },
-  { id: 'p_hdmi', title: 'Puertos HDMI sin Señal', description: 'Cartel Sin Señal con decos o Play' },
-  { id: 'p_wifi', title: 'Fallo Wi-Fi Bluetooth', description: 'No activa red ni detecta control' },
-  { id: 'p_mudo', title: 'Mudo Imagen Normal', description: 'Video perfecto pero sin sonido' },
-  { id: 'p_lluvia', title: 'Audio con Lluvia', description: 'Zumbido eléctrico o ruido fuerte' },
-  { id: 'p_termico', title: 'Apagado Aleatorio', description: 'Funciona minutos y corta por calor' },
-  { id: 'p_ajustes', title: 'No Guarda Ajustes', description: 'Borra claves o canales al apagar' },
-  { id: 'p_solo', title: 'Prende Solo', description: 'Se enciende de forma automática' },
-  { id: 'p_botones', title: 'No Responde Botones', description: 'Botonera física no obedece' },
-  { id: 'p_quemado', title: 'Olor a Quemado', description: 'Chispazo u olor a plástico quemado' }
+const LISTA_PLACA = [
+  { id: 'p_muerto', title: 'Muerto sin luz', description: 'El equipo no enciende absolutamente nada, la luz roja está apagada' },
+  { id: 'p_stby_f', title: 'Luz fija sin reaccionar', description: 'El standby enciende pero la tele no obedece al control' },
+  { id: 'p_stby_i', title: 'Luz parpadea no prende', description: 'El piloto del frente parpadea infinito pero el TV nunca arranca' },
+  { id: 'p_bucle', title: 'Bucle de reinicio', description: 'Muestra el logotipo unos segundos, se apaga solo y repite' },
+  { id: 'p_congelado', title: 'Congelado en el logo', description: 'Se queda clavado en la pantalla de inicio con la marca' },
+  { id: 'p_smart_c', title: 'Smart TV / Apps colgado', description: 'Pantalla colgada cargando el sistema o Netflix se cierra solo' },
+  { id: 'p_hdmi', title: 'HDMI sin señal', description: 'Da video normal pero no reconoce decos, PCs o PlayStation' },
+  { id: 'p_mudo', title: 'Mudo con imagen normal', description: 'Muestra canales y apps perfecto pero no emite ningún sonido' },
+  { id: 'p_lluvia', title: 'Audio con ruido/lluvia', description: 'Por los parlantes sale un siseo fuerte o zumbido constante' },
+  { id: 'p_rayo', title: 'Fallo por rayo o apagon', description: 'Dejó de funcionar tras tormenta o corta por calor tras minutos' }
 ];
 
 const LISTA_MARCAS = [
@@ -275,21 +219,21 @@ app.post('/webhook', async (req: Request, res: Response) => {
       if (interactiveId === 'cat_display') {
         session.metadata.sintoma = 'display';
         session.metadata.estado_actual = 'esperando_subfalla_display_1';
-        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma o daño exacto relacionado con tu pantalla:', 'Síntomas Display', [{ title: 'Display Parte 1', rows: LISTA_DISPLAY_1 }]);
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma o daño exacto relacionado con tu pantalla:', 'Síntomas Display', [{ title: 'Fallas de Display', rows: LISTA_DISPLAY }]);
         return res.status(200).send('OK');
       }
 
       if (interactiveId === 'cat_led') {
         session.metadata.sintoma = 'led';
         session.metadata.estado_actual = 'esperando_subfalla_led_1';
-        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto relacionado con la iluminación interna de tu televisor:', 'Síntomas LED', [{ title: 'LED Parte 1', rows: LISTA_LED_1 }]);
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto relacionado con la iluminación interna de tu televisor:', 'Síntomas LED', [{ title: 'Fallas de LEDs', rows: LISTA_LED }]);
         return res.status(200).send('OK');
       }
 
       if (interactiveId === 'cat_placa') {
         session.metadata.sintoma = 'placa';
         session.metadata.estado_actual = 'esperando_subfalla_placa_1';
-        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto relacionado con los componentes de la placa:', 'Síntomas Placa', [{ title: 'Placa Parte 1', rows: LISTA_PLACA_1 }]);
+        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto relacionado con los componentes de la placa:', 'Síntomas Placa', [{ title: 'Fallas de Placa', rows: LISTA_PLACA }]);
         return res.status(200).send('OK');
       }
 
@@ -297,23 +241,11 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
     // =====================================================================
-    // SUBMENÚS INTERACTIVOS - ANÁLISIS DE FALLAS ESPECÍFICAS
+    // SUBMENÚS INTERACTIVOS - ANÁLISIS DE FALLAS ESPECÍFICAS COMPACTADAS
     // =====================================================================
 
     // --- GRUPO 1: SUBFALLAS DE DISPLAY (DESCALIFICACIÓN CASO CERRADO / CHAT ABIERTO) ---
-    if (session.metadata.estado_actual === 'esperando_subfalla_display_1' || session.metadata.estado_actual === 'esperando_subfalla_display_2' || session.metadata.estado_actual === 'esperando_subfalla_display_3') {
-      
-      if (interactiveId === 'd_sig_1') {
-        session.metadata.estado_actual = 'esperando_subfalla_display_2';
-        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto de tu pantalla en esta segunda lista:', 'Síntomas Display', [{ title: 'Display Parte 2', rows: LISTA_DISPLAY_2 }]);
-        return res.status(200).send('OK');
-      }
-      if (interactiveId === 'd_sig_2') {
-        session.metadata.estado_actual = 'esperando_subfalla_display_3';
-        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto de tu pantalla en esta última lista:', 'Síntomas Display', [{ title: 'Display Parte 3', rows: LISTA_DISPLAY_3 }]);
-        return res.status(200).send('OK');
-      }
-
+    if (session.metadata.estado_actual === 'esperando_subfalla_display_1') {
       if (interactiveId.startsWith('d_')) {
         const msgDisplay = 'El síntoma que indicas corresponde a una falla de display. Lamentablemente, en Zener no reparamos ni cambiamos pantallas. Te comentamos que el costo de un panel original de repuesto supera el 80% o 90% del valor de un televisor nuevo de paquete, haciendo inviable la inversión. Si deseas consultar por un equipo diferente, puedes escribir la palabra "Inicio" para comenzar de nuevo.';
         await MetaClient.sendTextMessage(customerPhone, msgDisplay);
@@ -322,19 +254,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
     }
 
     // --- GRUPO 2: SUBFALLAS DE LED (CALIFICACIÓN) ---
-    if (session.metadata.estado_actual === 'esperando_subfalla_led_1' || session.metadata.estado_actual === 'esperando_subfalla_led_2' || session.metadata.estado_actual === 'esperando_subfalla_led_3') {
-      
-      if (interactiveId === 'l_sig_1') {
-        session.metadata.estado_actual = 'esperando_subfalla_led_2';
-        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto de iluminación en esta segunda lista:', 'Síntomas LED', [{ title: 'LED Parte 2', rows: LISTA_LED_2 }]);
-        return res.status(200).send('OK');
-      }
-      if (interactiveId === 'l_sig_2') {
-        session.metadata.estado_actual = 'esperando_subfalla_led_3';
-        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma exacto de iluminación en esta última lista:', 'Síntomas LED', [{ title: 'LED Parte 3', rows: LISTA_LED_3 }]);
-        return res.status(200).send('OK');
-      }
-
+    if (session.metadata.estado_actual === 'esperando_subfalla_led_1') {
       if (interactiveId.startsWith('l_')) {
         session.metadata.falla_especifica = userMessage;
         session.metadata.estado_actual = 'esperando_marca';
@@ -344,14 +264,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
     }
 
     // --- GRUPO 3: SUBFALLAS DE PLACA (CALIFICACIÓN) ---
-    if (session.metadata.estado_actual === 'esperando_subfalla_placa_1' || session.metadata.estado_actual === 'esperando_subfalla_placa_2') {
-      
-      if (interactiveId === 'p_sig_1') {
-        session.metadata.estado_actual = 'esperando_subfalla_placa_2';
-        await MetaClient.sendListMessage(customerPhone, 'Selecciona el síntoma de placa en esta segunda lista de fallas:', 'Síntomas Placa', [{ title: 'Placa Parte 2', rows: LISTA_PLACA_2 }]);
-        return res.status(200).send('OK');
-      }
-
+    if (session.metadata.estado_actual === 'esperando_subfalla_placa_1') {
       if (interactiveId.startsWith('p_')) {
         session.metadata.falla_especifica = userMessage;
         session.metadata.estado_actual = 'esperando_marca';
@@ -378,7 +291,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return res.status(200).send('OK');
     }
 
-    // --- RECOPILACIÓN RÍGIDA DE TAMAÑO Y DESPACHO FINAL ---
+    // --- RECOPILACIÓN RÍGIDA DE TAMAÑO CON CONTINUIDAD Y DESPACHO FINAL ---
     if (session.metadata.estado_actual === 'esperando_tamano_1' || session.metadata.estado_actual === 'esperando_tamano_2') {
       
       if (interactiveId === 't_sig_1') {
